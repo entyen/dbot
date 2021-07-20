@@ -1,4 +1,4 @@
-module.exports = async function ({bot, inter, user, lang}) {
+module.exports.run = async ({bot, inter, user, lang}) => {
     const currency = bot.emojis.cache.get(lang[4])
 
     bot.api.interactions(inter.id, inter.token).callback.post({

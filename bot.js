@@ -2,7 +2,6 @@ const Promise = require('bluebird')
 const Discord = require('discord.js')
 const mongoose = require('mongoose')
 const cron = require('node-cron')
-const { Player } = require('discord-player')
 
 const fs = require('fs')
 const tea = JSON.parse(fs.readFileSync('config.json', 'utf-8'))
@@ -12,30 +11,49 @@ const bot = new Discord.Client()
 const collection = new Discord.Collection()
 const embed = new Discord.MessageEmbed()
 bot.login(tea.TOKEN)
-const player = new Player(bot, {
-    enableLive: false,
-    ytdlDownloadOptions: {
-        filter: 'audioonly'
-    }
-})
-bot.player = player
-
-const userSchem = require('./schema/data.js')
-const indexCmds = require('./commands/index')
-const balanceCmd = require('./commands/balance')
-const myNumberCmd = require('./commands/mynumber')
-const NumberCmd = require('./commands/number')
-const messCoin = require('./jobs/mess_coin.js')
-//const userdb = mongoose.model(inter.guild_id, userSchem)
-const userdb = mongoose.model('570707745028964353', userSchem)
 const disbut = require('discord-buttons');
 disbut(bot) 
 
-async function deleteAllGlobalCommands(){
-let GCOMMANDS = await bot.api.applications(bot.user.id).commands.get()
-for(i = 0; i<GCOMMANDS.length;i++){
-  await bot.api.applications(bot.user.id).commands(GCOMMANDS[i].id).delete()
-}}
+bot.commands = new Discord.Collection();
+
+const dirCmd = async (dir) => {
+    fs.readdir(dir, (err, files) => {
+
+        if(err) console.log(err)
+        let jsFile = files.filter(f => f.split('.').pop() === 'js')
+
+        jsFile.forEach((f) => {
+            const props = require(`${dir}${f}`)
+            const cmd = f.split('.').slice(-2, -1).pop()
+            bot.commands.set(cmd, props)
+            console.log(cmd)
+        })
+    })
+}
+
+dirCmd('./commands/scommands/')
+
+const userSchem = require('./schema/data.js')
+const indexCmd = require('./commands/index')
+const messCoin = require('./jobs/mess_coin.js')
+const userdb = mongoose.model('570707745028964353', userSchem)
+
+const deleteAllGlobalCommands = async () => {
+    let GCOMMANDS = await bot.api.applications(bot.user.id).commands.get()
+    GCOMMANDS.forEach(async c => {
+    await bot.api.applications(bot.user.id).commands(c.id).delete()  
+    })
+}
+
+const stdin = process.openStdin()
+
+stdin.addListener("data", (d) => {
+    d = d.toString().trim() 
+    if (d == 'delg') { 
+        deleteAllGlobalCommands()
+        console.log('U delete all global commands')
+     }
+})
 
 bot.on('ready', async () => {
     console.log(`Logged in as ${bot.user.tag}!`)
@@ -44,8 +62,7 @@ bot.on('ready', async () => {
     bot.user.setActivity(`${ubot.balance} Aden`, {
         type: 'PLAYING'
     }).catch(console.error)
-    //deleteAllGlobalCommands()
-    indexCmds(bot, lang)
+    indexCmd(bot, lang)
 
     bot.ws.on('INTERACTION_CREATE', async inter => {
         try {
@@ -73,70 +90,32 @@ bot.on('ready', async () => {
             bot,
             inter,
             user,
-            lang
+            lang,
+            embed,
+            args,
+            userdb,
+            createAPIMessage
         }
 
-        if(command == 'balance') {
-            balanceCmd(ctx)
-            return
+        let commandfile
+
+        if(bot.commands.has(command)) { 
+            commandfile = bot.commands.get(command) 
         }
 
-        if(command == 'mynumber') {
-            myNumberCmd(ctx, embed, args, userdb, createAPIMessage)
-            return
-        }
-
-        if(command == 'number') {
-            NumberCmd(ctx, embed, args, userdb, createAPIMessage)
-            return
-        }
+        try { 
+            commandfile.run(ctx) 
+        } catch (e) { console.log(e) }
 
     } catch (e) {
         console.log(e)
     }
     })
 
-    bot.player.on('trackStart', async (message, track) => {
-        message.channel.send(
-        embed
-            .setDescription(`Сейчас играет [${track.title}](${track.url})`)
-            .setColor(0x2AB400)
-        )
-        .then((message) => {
-            message.react('👍')
-            message.react('👎')
-        })
-        .catch(console.error)
-
-        bot.on('messageReactionAdd', async (reaction, user) => {
-    	if (reaction.partial) {
-    		try {
-    			await reaction.fetch();
-    		} catch (error) {
-    			console.error('Something went wrong when fetching the message: ', error);
-    			return;
-    		}
-    	}
-
-        if (reaction.count == 4 && reaction.emoji.name == '👎') {
-            //await bot.player.skip(message)
-            await message.channel.send(`3 человека проголосовали за пропуск песня пропущена.`)
-        }
-
-        })
-
-    })
-
-    bot.player.on('queueEnd', async () => {
-        bot.user.setPresence({ activity: { name: `${ubot.balance} Aden`, type: 'PLAYING' }, status: 'online' })
-        .catch(console.error)
-    })
-
     bot.on('message', async (message) => { 
         try {
 
-        if (message.author.bot) return
-        if (message.channel.type == 'dm') return
+        if (message.author.bot || message.channel.type == 'dm') return
 
         let user = await userdb.findOne({ userid: message.member.user.id })
         if (!user){
@@ -146,33 +125,6 @@ bot.on('ready', async () => {
         const args = message.content.trim().split(/ +/g)
         const command = args.shift().toLowerCase()
         const currency = bot.emojis.cache.get(lang[4])
-
-        if(command === 'play'){
-            message.member.roles.cache.some(role =>['*'].includes(role.name)) ? price = 0 : price = 6 - 6
-            message.delete()
-            .catch(console.error)
-            if (user.balance > price){
-                //await bot.player.play(message, args[0])
-                await userdb.updateOne({userid: message.author.id}, {$set: {balance: user.balance - price}}) 
-                await userdb.updateOne({userid: 806351729750573106}, {$set: {balance: ubot.balance + price}}) 
-                await message.reply(`Вы оплатили песню с вас снято ${price} ${currency}, у вас ${user.balance - price} ${currency}`)
-            } else {
-                return message.reply(`Недостаточно средств, у вас ${user.balance} ${currency}`)
-            }
-        }
-
-        if(command === 'skip'){
-            message.member.roles.cache.some(role =>['*'].includes(role.name)) ? price = 0 : price = 4 - 4
-            message.delete()
-            if (user.balance > price){
-                //await bot.player.skip(message)
-                await userdb.updateOne({userid: message.author.id}, {$set: {balance: user.balance - price}}) 
-                await userdb.updateOne({userid: 806351729750573106}, {$set: {balance: ubot.balance + price}}) 
-                await message.reply(`Вы пропустили песню с вас снято ${price} ${currency}, у вас ${user.balance - price} ${currency}`)
-            } else {
-                return message.reply(`Недостаточно средств, у вас ${user.balance} ${currency}`)
-            }
-        }
 
         if(command === 'balanc') {
                 //user = await userdb.findOne({ userid: message.content.split(' ')[1] })
@@ -192,6 +144,11 @@ bot.on('ready', async () => {
                 .setStyle('grey')
                 .setID('fl76')
             let buttonG2 = new disbut.MessageButton()
+                .setLabel('TESO')
+                .setEmoji('861382147666477096')
+                .setStyle('grey')
+                .setID('teso')
+            let buttonG3 = new disbut.MessageButton()
                 .setLabel('Gta 5 RP')
                 .setEmoji('638135208612200459')
                 .setStyle('grey')
@@ -210,6 +167,7 @@ bot.on('ready', async () => {
                 .addComponent(buttonG0)
                 .addComponent(buttonG1)
                 .addComponent(buttonG2)
+                .addComponent(buttonG3)
             let buttonRowA = new disbut.MessageActionRow()
                 .addComponent(buttonA0)
                 .addComponent(buttonA1)
@@ -263,6 +221,11 @@ bot.on('ready', async () => {
 
         if (button.id == 'gta5rp') {
             const gRole = button.message.guild.roles.cache.find(role => role.id == "862521544944386058")
+            roleGiver(gRole)
+        }
+
+        if (button.id == 'teso') {
+            const gRole = button.message.guild.roles.cache.find(role => role.id == "863851712472154113")
             roleGiver(gRole)
         }
 

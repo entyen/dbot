@@ -1,4 +1,4 @@
-module.exports = async function ({bot, inter, user, lang}, embed, args, userdb, createAPIMessage){
+module.exports.run = async ({bot, inter, user, lang, embed, args, userdb, createAPIMessage}) => {
     const description = args.find(arg => arg.name.toLowerCase() == 'number').value
     embed
         .setDescription(description)
