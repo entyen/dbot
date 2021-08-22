@@ -14,22 +14,16 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
         }
         const rNum = randCurr(0, 1000)
         if (rNum <= (300 - t)) {
-            console.log(rNum)
             return 1
         } else if (rNum >= (300 - t) && rNum <= (400 - t)) {
-            console.log(rNum)
             return 2
         } else if (rNum >= (400 - t) && rNum <= (600 - t)) {
-            console.log(rNum)
             return 3
         } else if (rNum >= (600 - t) && rNum <= (800 - t)) {
-            console.log(rNum)
             return 4
         } else if (rNum >= (800 - t) && rNum <= (980 - t)) {
-            console.log(rNum)
             return 5
         } else if (rNum >= (980 - (t/2)) && (rNum <= 1000)) {
-            console.log(rNum)
             //message.reply(`Поздравляю вы выиграли 50 ${currency}`)
             return 50
         }
@@ -51,7 +45,7 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
         if (current_time < expiration_time) {
             const time_left = (expiration_time - current_time) / 1000
 
-            return console.log(`Wait ${time_left.toFixed(1)} user: ${message.author.username}`)
+            bot.channels.cache.get('878075420342374402').send(`Wait ${time_left.toFixed(1)} user: ${message.author.username}`)
         }
     }
 

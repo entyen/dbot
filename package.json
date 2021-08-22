@@ -5,10 +5,11 @@
   "main": "bot.js",
   "dependencies": {
     "bluebird": "^3.7.2",
+    "cron": "^1.8.2",
     "discord-buttons": "^4.0.0",
     "discord.js": "^12.5.3",
     "mongoose": "^5.13.3",
-    "node-cron": "^3.0.0"
+    "steam-web": "^0.7.0"
   },
   "scripts": {
     "start": "node bot.js",
