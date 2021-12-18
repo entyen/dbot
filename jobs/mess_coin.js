@@ -2,7 +2,7 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
     const currency = bot.emojis.cache.get(lang[4])
     user = await userdb.findOne({ userid: message.member.user.id })
 
-    const randCurr = (min, max) => { 
+    const randCurr = (min, max) => {
         return Math.floor(Math.random() * (max - min) + min) 
     }
 
