@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "name": "DiscordBot",
+      "script": "npm",
+      "args": "start",
+      "watch": true,
+      "log_date_format": "YYYY-MM-DD HH:mm:ss.SSS",
+      "out_file": "~/.pm2/logs/out.log",
+      "error_file": "~/.pm2/logs/error.log",
+      "max_memory_restart": "1024M",
+      "env": {
+        "NODE_ENV": "dev"
+      }
+    }
+  ]
+}
