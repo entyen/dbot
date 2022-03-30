@@ -21,6 +21,7 @@ const bot = new Client({
     Intents.FLAGS.GUILDS,
     Intents.FLAGS.GUILD_MESSAGES,
     Intents.FLAGS.GUILD_MEMBERS,
+    Intents.FLAGS.GUILD_VOICE_STATES,
   ],
 });
 const embed = new MessageEmbed();
@@ -31,91 +32,103 @@ const st = new steam({
   format: "json", //optional ['json', 'xml', 'vdf']
 });
 
+//PLAYER DISCORD
+const { Player } = require("discord-player");
+const player = new Player(bot, {
+  enableLive: false,
+  ytdlDownloadOptions: {
+    filter: "audioonly",
+  },
+});
+bot.player = player;
+//PLAYER
+
 const Web3 = require("web3");
-const resp = async () => {
+const nftUpdate = async (
+  fromBlock,
+  address,
+  colName,
+  fullName,
+  iconURL,
+  chanelId,
+  color,
+  URI
+) => {
   const ether_port =
     "wss://polygon-mainnet.g.alchemy.com/v2/4Aw02n_3OEU1MpVrp6m1TqyYA86CR9ob";
   const web3 = new Web3(ether_port);
-  await web3.eth.subscribe(
-    "logs",
-    {
-      fromBlock: 25010413,
-      address: "0x10c4555A15527806Eb54b243f115e31F7aADa466",
-      topics: [
-        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-        "0x0000000000000000000000000000000000000000000000000000000000000000",
-        null,
-      ],
-    },
-    async (err, res) => {
-      if (!err) {
-        const mintId = web3.utils.hexToNumber(res.topics[3]);
-        const minterId = res.topics[2].slice(26);
-        const blockInfo = await web3.eth.getBlock(res.blockNumber);
-        // bot.channels.cache.get("941599308338319380").send({
-        //   embeds: [
-        //     {
-        //       description: `**Fox #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${
-        //         res.address
-        //       }/${mintId})\nCollection: Thief Fox\n\nMinter: [${minterId.slice(
-        //         0,
-        //         6
-        //       )}***${minterId.slice(
-        //         -4
-        //       )}](https://polygonscan.com/address/${minterId})`,
-        //       footer: {
-        //         iconURL: `https://thief-fox.grk.pw/logo192.png`,
-        //         text: "Minted",
-        //       },
-        //       timestamp: blockInfo.timestamp * 1000,
-        //       color: [234, 98, 61],
-        //       image: {
-        //         url: `https://ipfs.io/ipfs/Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a/${mintId}.png`,
-        //       },
-        //     },
-        //   ],
-        // });
+  const data = {};
+  await web3.eth
+    .subscribe(
+      "logs",
+      {
+        fromBlock,
+        address,
+        topics: [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          null,
+        ],
+      },
+      (err, res) => {
+        if (!err) {
+        }
       }
-    }
-  );
-  await web3.eth.subscribe(
-    "logs",
-    {
-      fromBlock: 24851569,
-      address: "0x18c5d5e778FCD9db00B4433697BD1FD01F3C91F7",
-      topics: [
-        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-        "0x0000000000000000000000000000000000000000000000000000000000000000",
-        null,
-      ],
-    },
-    async (err, res) => {
-      if (!err) {
-        const mintId = web3.utils.hexToNumber(res.topics[3]);
-        const minterId = res.topics[2].slice(26);
-        const blockInfo = await web3.eth.getBlock(res.blockNumber);
-        // bot.channels.cache.get("941598098503909397").send({
-        //   embeds: [
-        //     {
-        //       description: `**Dino #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${res.address}/${mintId})\nCollection: Dino Planet-7518P\n\nMinter: [${minterId.slice(0, 6)}***${minterId.slice(-4)}](https://polygonscan.com/address/${minterId})`,
-        //       footer: {
-        //         iconURL: `https://dino.grk.pw/logo192.png`,
-        //         text: 'Minted'
-        //       },
-        //       timestamp: blockInfo.timestamp * 1000,
-        //       color: [0, 74, 115],
-        //       image: {
-        //         url: `https://ipfs.io/ipfs/QmXj2SHg1AZ2Fg2DC8ifyVTLSZkGwuArrqUFgYg3q1VZX8/${mintId}.png`
-        //       },
-        //     },
-        //   ],
-        // });
-      }
-    }
-  );
+    )
+    .on("data", async (res) => {
+      const mintId = web3.utils.hexToNumber(res.topics[3]);
+      const minterId = res.topics[2].slice(26);
+      const blockInfo = await web3.eth.getBlock(res.blockNumber);
+      await bot.channels.cache.get(chanelId).send({
+        embeds: [
+          {
+            description: `**${colName} #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${
+              res.address
+            }/${mintId})\nCollection: ${fullName}\n\nMinter: [${minterId.slice(
+              0,
+              6
+            )}***${minterId.slice(
+              -4
+            )}](https://polygonscan.com/address/${minterId})`,
+            footer: {
+              iconURL,
+              text: "Minted",
+            },
+            timestamp: blockInfo.timestamp * 1000,
+            color,
+            image: {
+              url: `https://ipfs.io/ipfs/${URI}/${mintId}.png`,
+            },
+          },
+        ],
+      });
+    })
+    .on("changed", function (log) {
+      console.log(log);
+    });
 };
 
-resp();
+nftUpdate(
+  25997948,
+  "0x10c4555A15527806Eb54b243f115e31F7aADa466",
+  "Fox",
+  "Thief Fox",
+  "https://thief-fox.grk.pw/logo192.png",
+  "941599308338319380",
+  [234, 98, 61],
+  "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
+)
+
+// nftUpdate(
+//   24851569,
+//   "0x18c5d5e778FCD9db00B4433697BD1FD01F3C91F7",
+//   "Dino",
+//   "Dino Planet-7518P",
+//   "https://dino.grk.pw/logo192.png",
+//   "941598098503909397",
+//   [0, 74, 115],
+//   "QmXj2SHg1AZ2Fg2DC8ifyVTLSZkGwuArrqUFgYg3q1VZX8"
+// );
 
 bot.commands = new Collection();
 
@@ -315,6 +328,74 @@ bot.on("messageCreate", async (message) => {
     const args = message.content.trim().split(/ +/g);
     const command = args.shift().toLowerCase();
     const currency = bot.emojis.cache.get(lang[4]);
+    let ubot = await userdb.findOne({ userid: bot.user.id });
+
+    if (command === "play") {
+      message.member.roles.cache.some((role) => ["*"].includes(role.name))
+        ? (price = 0)
+        : (price = 6 - 6);
+      if (user.balance > price) {
+        const query = args[0];
+        const queue = player.createQueue(message.guild);
+        const song = await player.search(query, {
+          requestedBy: message.author,
+        });
+        try {
+          await queue.connect(message.member.voice.channel);
+        } catch {
+          message.reply("Could not join your voice channel");
+        }
+        queue.addTrack(song.tracks[0]);
+        queue.play();
+        await userdb.updateOne(
+          { userid: message.author.id },
+          { $set: { balance: user.balance - price } }
+        );
+        await userdb.updateOne(
+          { userid: 806351729750573106 },
+          { $set: { balance: ubot.balance + price } }
+        );
+        await message.reply(
+          `Вы оплатили песню с вас снято ${price} ${currency}, у вас ${
+            user.balance - price
+          } ${currency}`
+        );
+        message.delete();
+      } else {
+        return message.reply(
+          `Недостаточно средств, у вас ${user.balance} ${currency}`
+        );
+      }
+    }
+
+    if (command === "skip") {
+      message.member.roles.cache.some((role) => ["*"].includes(role.name))
+        ? (price = 0)
+        : (price = 4 - 4);
+      if (user.balance > price) {
+        const queue = player.getQueue(message.guild);
+        if (!queue) return;
+        queue.skip();
+        await userdb.updateOne(
+          { userid: message.author.id },
+          { $set: { balance: user.balance - price } }
+        );
+        await userdb.updateOne(
+          { userid: 806351729750573106 },
+          { $set: { balance: ubot.balance + price } }
+        );
+        await message.reply(
+          `Вы пропустили песню с вас снято ${price} ${currency}, у вас ${
+            user.balance - price
+          } ${currency}`
+        );
+        message.delete();
+      } else {
+        return message.reply(
+          `Недостаточно средств, у вас ${user.balance} ${currency}`
+        );
+      }
+    }
 
     if (command === "uri") {
       const cmt = message.content.split("uri ")[1];
