@@ -40,6 +40,7 @@ const player = new Player(bot, {
     filter: "audioonly",
   },
 });
+const playdl = require("play-dl");
 bot.player = player;
 //PLAYER
 
@@ -117,7 +118,7 @@ nftUpdate(
   "941599308338319380",
   [234, 98, 61],
   "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
-)
+);
 
 // nftUpdate(
 //   24851569,
@@ -333,20 +334,43 @@ bot.on("messageCreate", async (message) => {
     if (command === "play") {
       message.member.roles.cache.some((role) => ["*"].includes(role.name))
         ? (price = 0)
-        : (price = 6 - 6);
+        : (price = 6);
       if (user.balance > price) {
         const query = args[0];
-        const queue = player.createQueue(message.guild);
-        const song = await player.search(query, {
-          requestedBy: message.author,
+        const queue = player.createQueue(message.guild, {
+          metadata: {
+            channel: message.channel,
+          },
+          async onBeforeCreateStream(track, source, _queue) {
+            // only trap youtube source
+            if (source === "youtube") {
+              // track here would be youtube track
+              return (
+                await playdl.stream(track.url, {
+                  discordPlayerCompatibility: true,
+                })
+              ).stream;
+              // we must return readable stream or void (returning void means telling discord-player to look for default extractor)
+            }
+          },
         });
+
         try {
-          await queue.connect(message.member.voice.channel);
+          if (!queue.connection)
+            await queue.connect(message.member.voice.channel);
         } catch {
-          message.reply("Could not join your voice channel");
+          queue.destroy();
+          return await message.reply("Could not join your voice channel!");
         }
-        queue.addTrack(song.tracks[0]);
-        queue.play();
+
+        const track = await player
+          .search(query, {
+            requestedBy: message.author,
+          })
+          .then((x) => x.tracks[0]);
+        if (!track)
+          return await message.reply(`❌ | Track **${query}** not found!`);
+        queue.play(track);
         await userdb.updateOne(
           { userid: message.author.id },
           { $set: { balance: user.balance - price } }
@@ -356,7 +380,7 @@ bot.on("messageCreate", async (message) => {
           { $set: { balance: ubot.balance + price } }
         );
         await message.reply(
-          `Вы оплатили песню с вас снято ${price} ${currency}, у вас ${
+          `Вы оплатили песню ${track.title} с вас снято ${price} ${currency}, у вас ${
             user.balance - price
           } ${currency}`
         );
@@ -371,7 +395,7 @@ bot.on("messageCreate", async (message) => {
     if (command === "skip") {
       message.member.roles.cache.some((role) => ["*"].includes(role.name))
         ? (price = 0)
-        : (price = 4 - 4);
+        : (price = 4);
       if (user.balance > price) {
         const queue = player.getQueue(message.guild);
         if (!queue) return;
