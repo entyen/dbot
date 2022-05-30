@@ -109,16 +109,16 @@ const nftUpdate = async (
     });
 };
 
-nftUpdate(
-  25997948,
-  "0x10c4555A15527806Eb54b243f115e31F7aADa466",
-  "Fox",
-  "Thief Fox",
-  "https://thief-fox.grk.pw/logo192.png",
-  "941599308338319380",
-  [234, 98, 61],
-  "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
-);
+// nftUpdate(
+//   25997948,
+//   "0x10c4555A15527806Eb54b243f115e31F7aADa466",
+//   "Fox",
+//   "Thief Fox",
+//   "https://thief-fox.grk.pw/logo192.png",
+//   "941599308338319380",
+//   [234, 98, 61],
+//   "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
+// );
 
 // nftUpdate(
 //   24851569,
@@ -170,11 +170,13 @@ const getGO = (gameid) => {
 
 const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow");
 
-bot.on("ready", async () => {
+bot.on("ready", (_) => {
   console.log(`Logged in as ${bot.user.tag}!`);
   const currency = bot.emojis.cache.get(lang[4]);
-  let ubot = await userdb.findOne({ userid: bot.user.id });
-  bot.user.setActivity(`${ubot.balance} Aden`, { type: "PLAYING" });
+  setInterval(async (_) => {
+    let ubot = await userdb.findOne({ userid: bot.user.id });
+    bot.user.setActivity(`${ubot.balance} Aden`, { type: "PLAYING" });
+  }, 30000);
 
   indexCmd(bot, lang);
 
@@ -206,6 +208,7 @@ bot.on("ready", async () => {
       "/crucible",
       "/excalibur",
       "/rats_nest",
+      "/zero_gravity",
     ];
     await ren.setName(arrName[rand(0, arrName.length)]);
 
@@ -274,7 +277,7 @@ bot.on("guildMemberUpdate", async (oldMember, newMember) => {
       !oldMember._roles.find((x) => x === roleId)
     ) {
       const tk = await newMember.guild.roles.fetch(roleId);
-      const icon = tk.name.replace(/[A-z0-9 ]/g, "");
+      const icon = tk.name.replace(/[A-z0-9 _.-]/g, "");
       if (newMember.nickname) {
         newMember.guild.members.cache
           .get(newMember.user.id)
@@ -315,6 +318,7 @@ bot.on("guildMemberUpdate", async (oldMember, newMember) => {
   roleIcon("761356018659622923");
   roleIcon("571480372282392588");
   roleIcon("620706899796426812");
+  roleIcon("980933530689347594");
 });
 
 bot.on("messageCreate", async (message) => {
@@ -330,6 +334,21 @@ bot.on("messageCreate", async (message) => {
     const command = args.shift().toLowerCase();
     const currency = bot.emojis.cache.get(lang[4]);
     let ubot = await userdb.findOne({ userid: bot.user.id });
+
+    const updateBalance = async (price) => {
+      await userdb.updateOne(
+        { userid: message.author.id },
+        { $set: { balance: user.balance - price } }
+      );
+      await userdb.updateOne(
+        { userid: "806351729750573106" },
+        { $set: { balance: ubot.balance + price } }
+      );
+    };
+
+    if (command === "-cash") {
+      updateBalance(100);
+    };
 
     if (command === "play") {
       message.member.roles.cache.some((role) => ["*"].includes(role.name))
@@ -349,7 +368,7 @@ bot.on("messageCreate", async (message) => {
                 await playdl.stream(track.url, {
                   discordPlayerCompatibility: true,
                 })
-              ).stream;
+              ).stream
               // we must return readable stream or void (returning void means telling discord-player to look for default extractor)
             }
           },
@@ -371,16 +390,11 @@ bot.on("messageCreate", async (message) => {
         if (!track)
           return await message.reply(`❌ | Track **${query}** not found!`);
         queue.play(track);
-        await userdb.updateOne(
-          { userid: message.author.id },
-          { $set: { balance: user.balance - price } }
-        );
-        await userdb.updateOne(
-          { userid: 806351729750573106 },
-          { $set: { balance: ubot.balance + price } }
-        );
+        updateBalance(price);
         await message.reply(
-          `Вы оплатили песню ${track.title} с вас снято ${price} ${currency}, у вас ${
+          `${message.author.username} оплатил песню ${
+            track.title
+          } с вас снято ${price} ${currency}, у вас ${
             user.balance - price
           } ${currency}`
         );
@@ -400,16 +414,9 @@ bot.on("messageCreate", async (message) => {
         const queue = player.getQueue(message.guild);
         if (!queue) return;
         queue.skip();
-        await userdb.updateOne(
-          { userid: message.author.id },
-          { $set: { balance: user.balance - price } }
-        );
-        await userdb.updateOne(
-          { userid: 806351729750573106 },
-          { $set: { balance: ubot.balance + price } }
-        );
+        updateBalance(price);
         await message.reply(
-          `Вы пропустили песню с вас снято ${price} ${currency}, у вас ${
+          `${message.author.username} пропустил песню с вас снято ${price} ${currency}, у вас ${
             user.balance - price
           } ${currency}`
         );
