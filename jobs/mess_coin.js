@@ -47,6 +47,7 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
 
             bot.channels.cache.get('878075420342374402').send(`Wait ${time_left.toFixed(1)} user: ${message.author.username}`)
         }
+        return
     }
 
     time_stamp.set(message.member.user.id, current_time)
@@ -54,4 +55,5 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
 
     const currAdd = user.balance + randRand()
     await userdb.updateOne({userid: message.author.id}, {$set: {balance: currAdd}}) 
+    bot.channels.cache.get('878075420342374402').send(`Get ${randRand()} ${currency} curr balance ${currAdd} ${currency} user: ${message.author.username}`)
 }

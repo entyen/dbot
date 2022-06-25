@@ -45,8 +45,7 @@ bot.player = player;
 //PLAYER
 
 const Web3 = require("web3");
-const nftUpdate = async (
-  fromBlock,
+const nftUpdate = (
   address,
   colName,
   fullName,
@@ -58,78 +57,87 @@ const nftUpdate = async (
   const ether_port =
     "wss://polygon-mainnet.g.alchemy.com/v2/4Aw02n_3OEU1MpVrp6m1TqyYA86CR9ob";
   const web3 = new Web3(ether_port);
-  const data = {};
-  await web3.eth
-    .subscribe(
-      "logs",
-      {
-        fromBlock,
-        address,
-        topics: [
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-          "0x0000000000000000000000000000000000000000000000000000000000000000",
-          null,
-        ],
-      },
-      (err, res) => {
-        if (!err) {
+  const data = JSON.parse(fs.readFileSync("data.json", "utf-8"));
+  const fromBlock = data[address]
+  return new Promise(resolve => {
+    web3.eth
+      .subscribe(
+        "logs",
+        {
+          fromBlock,
+          address,
+          topics: [
+            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            null,
+          ],
+        },
+        (err, res) => {
+          if (!err) {
+            return;
+          }
         }
-      }
-    )
-    .on("data", async (res) => {
-      const mintId = web3.utils.hexToNumber(res.topics[3]);
-      const minterId = res.topics[2].slice(26);
-      const blockInfo = await web3.eth.getBlock(res.blockNumber);
-      await bot.channels.cache.get(chanelId).send({
-        embeds: [
-          {
-            description: `**${colName} #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${
-              res.address
-            }/${mintId})\nCollection: ${fullName}\n\nMinter: [${minterId.slice(
-              0,
-              6
-            )}***${minterId.slice(
-              -4
-            )}](https://polygonscan.com/address/${minterId})`,
-            footer: {
-              iconURL,
-              text: "Minted",
+      )
+      .on("data", async (res) => {
+        const mintId = web3.utils.hexToNumber(res.topics[3]);
+        const minterId = res.topics[2].slice(26);
+        const blockInfo = await web3.eth.getBlock(res.blockNumber);
+        await bot.channels.cache.get(chanelId).send({
+          embeds: [
+            {
+              description: `**${colName} #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${res.address
+                }/${mintId})\nCollection: ${fullName}\n\nMinter: [${minterId.slice(
+                  0,
+                  6
+                )}***${minterId.slice(
+                  -4
+                )}](https://polygonscan.com/address/${minterId})`,
+              footer: {
+                iconURL,
+                text: "Minted",
+              },
+              timestamp: blockInfo.timestamp * 1000,
+              color,
+              image: {
+                url: `https://opensea.mypinata.cloud/ipfs/${URI}/${mintId}.png`,
+              },
             },
-            timestamp: blockInfo.timestamp * 1000,
-            color,
-            image: {
-              url: `https://ipfs.io/ipfs/${URI}/${mintId}.png`,
-            },
-          },
-        ],
-      });
-    })
-    .on("changed", function (log) {
-      console.log(log);
-    });
+          ],
+        });
+        data[address] = res.blockNumber + 1
+        fs.writeFile("data.json", JSON.stringify(data), (e) => {
+          if (e) {
+            console.log(e)
+          }
+        })
+        resolve()
+      })
+  })
 };
 
-// nftUpdate(
-//   25997948,
-//   "0x10c4555A15527806Eb54b243f115e31F7aADa466",
-//   "Fox",
-//   "Thief Fox",
-//   "https://thief-fox.grk.pw/logo192.png",
-//   "941599308338319380",
-//   [234, 98, 61],
-//   "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
-// );
+const mintCheck = () => {
+  nftUpdate(
+    "0x10c4555A15527806Eb54b243f115e31F7aADa466",
+    "Fox",
+    "Thief Fox",
+    "https://thief-fox.grk.pw/logo192.png",
+    "987136039804076104",
+    [234, 98, 61],
+    "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
+  )
 
-// nftUpdate(
-//   24851569,
-//   "0x18c5d5e778FCD9db00B4433697BD1FD01F3C91F7",
-//   "Dino",
-//   "Dino Planet-7518P",
-//   "https://dino.grk.pw/logo192.png",
-//   "941598098503909397",
-//   [0, 74, 115],
-//   "QmXj2SHg1AZ2Fg2DC8ifyVTLSZkGwuArrqUFgYg3q1VZX8"
-// );
+  nftUpdate(
+    "0x18c5d5e778FCD9db00B4433697BD1FD01F3C91F7",
+    "Dino",
+    "Dino Planet-7518P",
+    "https://dino.grk.pw/logo192.png",
+    "941598098503909397",
+    [0, 74, 115],
+    "QmXj2SHg1AZ2Fg2DC8ifyVTLSZkGwuArrqUFgYg3q1VZX8"
+  );
+}
+
+mintCheck()
 
 bot.commands = new Collection();
 
@@ -336,18 +344,22 @@ bot.on("messageCreate", async (message) => {
     let ubot = await userdb.findOne({ userid: bot.user.id });
 
     const updateBalance = async (price) => {
-      await userdb.updateOne(
-        { userid: message.author.id },
-        { $set: { balance: user.balance - price } }
-      );
-      await userdb.updateOne(
-        { userid: "806351729750573106" },
-        { $set: { balance: ubot.balance + price } }
-      );
+      try {
+        await userdb.updateOne(
+          { userid: message.author.id },
+          { $set: { balance: user.balance - price } }
+        )
+        await userdb.updateOne(
+          { userid: "806351729750573106" },
+          { $set: { balance: ubot.balance + price } }
+        )
+      } catch (e) {
+        console.log(e)
+      }
     };
 
     if (command === "-cash") {
-      updateBalance(100);
+      updateBalance(1);
     };
 
     if (command === "play") {
@@ -392,10 +404,8 @@ bot.on("messageCreate", async (message) => {
         queue.play(track);
         updateBalance(price);
         await message.reply(
-          `${message.author.username} оплатил песню ${
-            track.title
-          } с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username} оплатил песню ${track.title
+          } с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         );
         message.delete();
@@ -416,8 +426,7 @@ bot.on("messageCreate", async (message) => {
         queue.skip();
         updateBalance(price);
         await message.reply(
-          `${message.author.username} пропустил песню с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username} пропустил песню с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         );
         message.delete();
@@ -522,47 +531,19 @@ bot.on("interactionCreate", async (button) => {
   button.customId == "bdo"
     ? roleGiver("796756163135930389")
     : button.customId == "gta5rp"
-    ? roleGiver("862521544944386058")
-    : button.customId == "teso"
-    ? roleGiver("863851712472154113")
-    : button.customId == "fl76"
-    ? roleGiver("797892063830999080")
-    : button.customId == "strBase"
-    ? roleGiver("870960525780058185")
-    : button.customId == "nwr"
-    ? roleGiver("874578068210085918")
-    : button.customId == "archKey"
-    ? roleGiver("861743745083244586")
-    : button.customId == "linux" && roleGiver("862531032376148018");
+      ? roleGiver("862521544944386058")
+      : button.customId == "teso"
+        ? roleGiver("863851712472154113")
+        : button.customId == "fl76"
+          ? roleGiver("797892063830999080")
+          : button.customId == "strBase"
+            ? roleGiver("870960525780058185")
+            : button.customId == "nwr"
+              ? roleGiver("874578068210085918")
+              : button.customId == "archKey"
+                ? roleGiver("861743745083244586")
+                : button.customId == "linux" && roleGiver("862531032376148018");
 });
-
-/* bot.on('voiceStateUpdate', (oldMember, newMember) => {
-  let newUserChannel = newMember.channel
-  let oldUserChannel = oldMember.channel
-  try {
-  if(!!newUserChannel) {
-    let usr = uid => newUserChannel.members.find(user => user.id === uid)    
-    const rg2 = usr('230098678558359552')
-
-    if (newMember.id === '229673855470272512' && rg2 === '230098678558359552'){
-        newUserChannel.guild.member(newMember.id).setNickname(`${rg2.username} 🐀`)
-    }
-    console.log(newMember)
-    // User Joins a voice channel
-
-  } else {
-
-    if (oldMember.id === '229673855470272512'){
-        oldUserChannel.guild.member(oldMember.id).setNickname(``)
-    }
-    if (oldMember.id === '230098678558359552'){
-        oldUserChannel.guild.member(oldMember.id).setNickname(``)
-    }
-    // User leaves a voice channel
-
-  }
-  } catch (e) { console.log(e) }
-}) */
 
 async function createAPIMessage(inter, content) {
   const apiMessage = await Discord.APIMessage.create(
