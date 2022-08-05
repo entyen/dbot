@@ -7,13 +7,13 @@
     "bluebird": "^3.7.2",
     "cron": "^1.8.2",
     "discord-buttons": "^4.0.0",
-    "discord-player": "^5.2.2",
-    "discord.js": "^13.6.0",
-    "mongoose": "^5.13.3",
+    "discord-player": "^5.3.0",
+    "discord.js": "^14.1.2",
+    "mongoose": "^6.5.1",
     "opusscript": "^0.0.8",
     "play-dl": "^1.9.4",
     "steam-web": "^0.7.0",
-    "web3": "^1.7.0",
+    "web3": "^1.7.5",
     "ytdl-core": "^4.11.0"
   },
   "scripts": {

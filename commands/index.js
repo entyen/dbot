@@ -1,40 +1,30 @@
-module.exports = async function (bot, lang) {
-  bot.api.applications(bot.user.id).commands.post({
-    data: {
-      name: "balance",
-      description: lang[5],
-    },
-  });
+module.exports = async function (rest, SlashCommandBuilder, Routes, bot, lang) {
+  const commands = [
+    new SlashCommandBuilder().setName("balance").setDescription(lang[5]),
+    new SlashCommandBuilder()
+      .setName("number")
+      .setDescription("Search user number by @tag!")
+      .addUserOption((option) => option.setName("tag").setDescription('Write usertag here').setRequired(true)),
+    new SlashCommandBuilder()
+      .setName("mynumber")
+      .setDescription(lang[7])
+      .addIntegerOption((option) => option.setName("number").setDescription('Write Number').setRequired(true)),
+  ];
 
-  bot.api.applications(bot.user.id).commands.post({
-    data: {
-      name: "mynumber",
-      description: lang[7],
+  try {
+    // console.log("Started refreshing application (/) commands.");
 
-      options: [
-        {
-          name: "number",
-          description: "Content of the embed",
-          type: 4,
-          required: true,
-        },
-      ],
-    },
-  });
+    bot.guilds.cache.forEach(async (i) => {
+      const CLIENT_ID = bot.user.id;
+      const GUILD_ID = i.id;
 
-  bot.api.applications(bot.user.id).commands.post({
-    data: {
-      name: "number",
-      description: "Search user number by @tag!",
+      // await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+      //   body: commands,
+      // });
+    });
 
-      options: [
-        {
-          name: "tag",
-          description: "write usertag here",
-          type: 6,
-          required: true,
-        },
-      ],
-    },
-  });
+    // console.log("Successfully reloaded application (/) commands.");
+  } catch (error) {
+    console.error(error);
+  }
 };

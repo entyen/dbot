@@ -1,15 +1,23 @@
-module.exports.run = async ({bot, inter, user, lang, embed, args, userdb, createAPIMessage}) => {
-    const description = args.find(arg => arg.name.toLowerCase() == 'tag').value.replace(/[<@!>]/gi, '')
-    user = await userdb.findOne({ userid: description })
-    embed
-        .setDescription(`<@!${description}> = ${user.tel}`)
-        .setColor(0x00edff)
+module.exports.run = async ({ bot, inter, lang, embed, args, userdb }) => {
+  const value = inter.options.getMember("tag");
+  const userid = value.user.id;
+  const localUser = (await userdb.findOne({ userid })) || "NoUser";
+  const dicordUser = bot.users.cache.get(userid);
+  await inter.reply({
+    content: `📱 ${localUser.tel || "No Number"}`,
+    ephemeral: true,
+  });
 
-    bot.api.interactions(inter.id, inter.token).callback.post({
-        data: {
-            type: 4,
-            data: await createAPIMessage(inter, embed)
-        }
-    })
-
-}
+  //       embeds: [
+  //         {
+  //           author: {
+  //             name: `${dicordUser.username}#${dicordUser.discriminator}`,
+  //             icon_url: dicordUser.avatar
+  //               ? `https://cdn.discordapp.com/avatars/${dicordUser.id}/${dicordUser.avatar}.webp`
+  //               : "https://grk.pw/tf.gif",
+  //           },
+  //           description: `📱 ${localUser.tel || "No Number"}`,
+  //           color: 8448109,
+  //         },
+  //       ],
+};

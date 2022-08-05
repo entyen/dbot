@@ -1,13 +1,5 @@
-module.exports.run = async ({bot, inter, user, lang}) => {
-    const currency = bot.emojis.cache.get(lang[4])
+module.exports.run = async ({ bot, inter, user, lang, embed }) => {
+  const currency = bot.emojis.cache.get(lang[4]);
 
-    bot.api.interactions(inter.id, inter.token).callback.post({
-        data: {
-            type: 4,
-            data: {
-                content: `${lang[3]} ${user.balance} ${currency}`,
-                flags: 64
-            }
-        }
-    })
-}
+  await inter.reply({ content: `${lang[3]} ${user.balance} ${currency}`, ephemeral: true });
+};
