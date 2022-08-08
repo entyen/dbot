@@ -6,6 +6,7 @@ const {
   Routes,
   MessageActionRow,
   MessageButton,
+  ActivityType,
   GatewayIntentBits,
   SlashCommandBuilder,
 } = require("discord.js");
@@ -25,6 +26,8 @@ const bot = new Client({
     "GuildMembers",
     GatewayIntentBits.Guilds,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.DirectMessages,
   ],
 });
 
@@ -189,25 +192,25 @@ bot.on("ready", (_) => {
   const currency = bot.emojis.cache.get(lang[4]);
   setInterval(async (_) => {
     let ubot = await userdb.findOne({ userid: bot.user.id });
-    bot.user.setActivity(`${ubot.balance} Aden`, { type: "PLAYING" });
+    bot.user.setActivity(`${ubot.balance} Aden`, {
+      type: ActivityType.Playing,
+    });
   }, 30000);
 
   indexCmd(rest, SlashCommandBuilder, Routes, bot, lang);
 
-  job.addCallback(async () => {
-    //Star Base
-    const sb = await getGO(454120);
-    const c = bot.channels.resolve("874205752837943337");
-    sb >= 2000
-      ? await c.setName(`🟢 Online: ${sb}`)
-      : await c.setName(`🔴 Offline: ${sb}`);
+  job.addCallback(() => {
+    const gameScan = async (gameid, voiceChannelId) => {
+      const game = await getGO(gameid);
+      const channel = bot.channels.resolve(voiceChannelId);
+      game >= 2000
+        ? await channel.setName(`🟢 Online: ${game}`)
+        : await channel.setName(`🔴 Offline: ${game}`);
+    };
 
-    //New World
-    const nw = await getGO(1063730);
-    const n = bot.channels.resolve("874577935565193237");
-    nw >= 2000
-      ? await n.setName(`🟢 Online: ${nw}`)
-      : await n.setName(`🔴 Offline: ${nw}`);
+    gameScan(454120, "874205752837943337");
+    gameScan(1063730, "874577935565193237");
+    gameScan(306130, "1006092983814332426");
 
     //Random Channel Name
     const ren = bot.channels.resolve("896791375511687219");
@@ -224,13 +227,22 @@ bot.on("ready", (_) => {
       "/rats_nest",
       "/zero_gravity",
     ];
-    await ren.setName(arrName[rand(0, arrName.length)]);
-
-    //LOG
-    bot.channels.cache
-      .get("878075420342374402")
-      .send(`Date =${job.nextDates()} SB =${sb} NW =${nw}`);
+    ren.setName(arrName[rand(0, arrName.length)]);
   });
+});
+
+bot.on("presenceUpdate", (oldPresence, newPresence) => {
+  // if (newPresence.userId === "293285361231069184") {
+  //   console.log(newPresence)
+  // }
+  // console.log(newPresence.activities)
+  if (newPresence.userId === "230098678558359552") {
+    if (newPresence.status === "online") {
+      if (newPresence.guild.id === '231855360716046337') {
+        bot.channels.cache.get("611568076659490816").send("<@!1231> Чебупель ты где!!!");
+      }
+    }
+  }
 });
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -291,20 +303,19 @@ bot.on("messageCreate", async (message) => {
     const currency = bot.emojis.cache.get(lang[4]);
     let ubot = await userdb.findOne({ userid: bot.user.id });
 
-    const updateBalance = async (price) => {
-      try {
-        await userdb.updateOne(
-          { userid: message.author.id },
-          { $set: { balance: user.balance - price } }
-        );
-        await userdb.updateOne(
-          { userid: "806351729750573106" },
-          { $set: { balance: ubot.balance + price } }
-        );
-      } catch (e) {
-        console.log(e);
-      }
-    };
+    const updateBalance = (price) =>
+      new Promise(async (resolve, reject) => {
+        user.balance = user.balance - price;
+        ubot.balance = ubot.balance + price;
+        try {
+          await user.save();
+          await ubot.save();
+          resolve();
+        } catch (e) {
+          console.log(e);
+          reject();
+        }
+      });
 
     if (command === "-cash") {
       if (user.acclvl < 10) return;
@@ -321,7 +332,8 @@ bot.on("messageCreate", async (message) => {
         return message.reply("Not Correct UserID");
       }
       if (ct >= 0 && ct <= 10) {
-        await userdb.updateOne({ userid }, { $set: { acclvl: ct } });
+        user.acclvl = ct;
+        await user.save();
         message.reply(`User: <@!${userid}> acclvl now ${ct}`);
       }
     }
@@ -449,6 +461,29 @@ bot.on("messageCreate", async (message) => {
     //   message.reply("Pong");
     // }
 
+    if (command === "fib") {
+      const cmt = message.content.split("fib ")[1];
+      if (!Number(cmt)) return;
+      const fibArr = [];
+      for (let i = 0; i < cmt; i++) {
+        const fomula = Math.floor(
+          (((1 + Math.sqrt(5)) / 2) ** i - ((1 - Math.sqrt(5)) / 2) ** i) /
+            Math.sqrt(5)
+        );
+        if (fomula >= Number.MAX_SAFE_INTEGER) break;
+        fibArr.push(fomula);
+      }
+      message.reply(fibArr.join(" "));
+    }
+
+    if (command === "gn") {
+      const cmt = +message.content.split("gn ")[1] || 1;
+      const fi = (Math.sqrt(5) + cmt) / 2;
+      message
+        .reply(`(√5+${cmt})/2`)
+        .then((q) => setTimeout(() => q.edit(String(fi)), 1000));
+    }
+
     // if (command === "象" && message.channel.guild.id === "570707745028964353") {
     //   let button = (gamen, emojid, style, cbid) => {
     //     return new MessageButton()
@@ -493,7 +528,7 @@ bot.on("messageCreate", async (message) => {
     // }
 
     if (message.channelId) {
-      messCoin(message, bot, user, lang, collection, userdb);
+      messCoin(message, bot, lang, collection, userdb);
     }
   } catch (e) {
     console.log(`error ${e}`);

@@ -1,4 +1,4 @@
-module.exports = async function (message, bot, user, lang, collection, userdb) {
+module.exports = async function (message, bot, lang, collection, userdb) {
     const currency = bot.emojis.cache.get(lang[4])
     user = await userdb.findOne({ userid: message.member.user.id })
 
@@ -24,7 +24,6 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
         } else if (rNum >= (800 - t) && rNum <= (980 - t)) {
             return 5
         } else if (rNum >= (980 - (t/2)) && (rNum <= 1000)) {
-            //message.reply(`Поздравляю вы выиграли 50 ${currency}`)
             return 50
         }
     }
@@ -34,7 +33,7 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
     if (!cooldowns.has(message.channel.type)){
        cooldowns.set(message.channel.type, collection)
     }
-   
+
     const current_time = Date.now()
     const time_stamp = cooldowns.get(message.channel.type)
     const cooldown_stamp = (60) * 1000
@@ -54,6 +53,7 @@ module.exports = async function (message, bot, user, lang, collection, userdb) {
     setTimeout(() => time_stamp.delete(message.member.user.id), cooldown_stamp)
 
     const currAdd = user.balance + randRand()
-    await userdb.updateOne({userid: message.author.id}, {$set: {balance: currAdd}}) 
-    bot.channels.cache.get('878075420342374402').send(`Get ${randRand()} ${currency} curr balance ${currAdd} ${currency} user: ${message.author.username}`)
+    bot.channels.cache.get('878075420342374402').send(`Get ${currAdd - user.balance} ${currency} curr balance ${currAdd} ${currency} user: ${message.author.username}`)
+    user.balance = currAdd
+    await user.save()
 }
