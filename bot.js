@@ -9,13 +9,15 @@ const {
   ActivityType,
   GatewayIntentBits,
   SlashCommandBuilder,
+  EmbedBuilder,
+  CommandInteractionOptionResolver,
 } = require("discord.js");
 const mongoose = require("mongoose");
 const steam = require("steam-web");
 const CronJob = require("cron").CronJob;
 
 const fs = require("fs");
-const tea = JSON.parse(fs.readFileSync("config.json", "utf-8"));
+const config = require("./config.json");
 const lang = JSON.parse(fs.readFileSync("en.json", "utf-8"));
 
 const bot = new Client({
@@ -32,10 +34,10 @@ const bot = new Client({
 });
 
 const collection = new Collection();
-bot.login(tea.TOKEN);
-const rest = new REST({ version: "10" }).setToken(tea.TOKEN);
+bot.login(config.TOKEN);
+const rest = new REST({ version: "10" }).setToken(config.TOKEN);
 const st = new steam({
-  apiKey: tea.STEAM_TOKEN,
+  apiKey: config.STEAM_TOKEN,
   format: "json", //optional ['json', 'xml', 'vdf']
 });
 
@@ -51,8 +53,17 @@ const playdl = require("play-dl");
 bot.player = player;
 //PLAYER
 
+const {
+  userSchem,
+  iconRoleSchem,
+  nftUpdateSchem,
+} = require("./schema/data.js");
 const Web3 = require("web3");
-const nftUpdate = (
+const ether_port =
+  "wss://polygon-mainnet.g.alchemy.com/v2/4Aw02n_3OEU1MpVrp6m1TqyYA86CR9ob";
+const web3 = new Web3(ether_port);
+const nftdb = mongoose.model("nftBase", nftUpdateSchem);
+const nftUpdate = async (
   address,
   colName,
   fullName,
@@ -61,66 +72,72 @@ const nftUpdate = (
   color,
   URI
 ) => {
-  const ether_port =
-    "wss://polygon-mainnet.g.alchemy.com/v2/4Aw02n_3OEU1MpVrp6m1TqyYA86CR9ob";
-  const web3 = new Web3(ether_port);
-  const data = JSON.parse(fs.readFileSync("data.json", "utf-8"));
-  const fromBlock = data[address];
-  return new Promise((resolve) => {
-    web3.eth
-      .subscribe(
-        "logs",
-        {
-          fromBlock,
-          address,
-          topics: [
-            "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-            null,
-          ],
-        },
-        (err, res) => {
-          if (!err) {
-            return;
+  const nft = await nftdb.findOne({ smartContract: address });
+  if (!nft) {
+    const newNft = new nftdb({
+      smartContract: address,
+      blockId: 0,
+    });
+    await newNft.save();
+  } else {
+    const fromBlock = nft.blockId;
+    return new Promise((resolve) => {
+      web3.eth
+        .subscribe(
+          "logs",
+          {
+            fromBlock,
+            address,
+            topics: [
+              "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              null,
+            ],
+          },
+          (err, res) => {
+            if (!err) {
+              return;
+            }
           }
-        }
-      )
-      .on("data", async (res) => {
-        const mintId = web3.utils.hexToNumber(res.topics[3]);
-        const minterId = res.topics[2].slice(26);
-        const blockInfo = await web3.eth.getBlock(res.blockNumber);
-        await bot.channels.cache.get(chanelId).send({
-          embeds: [
-            {
-              description: `**${colName} #${mintId} has Minted**\n[Token ID: ${mintId}](https://opensea.io/assets/matic/${
-                res.address
-              }/${mintId})\nCollection: ${fullName}\n\nMinter: [${minterId.slice(
+        )
+        .on("data", async (res) => {
+          const mintId = web3.utils.hexToNumber(res.topics[3]);
+          const minterId = res.topics[2].slice(26);
+          const blockInfo = await web3.eth.getBlock(res.blockNumber);
+          const channel = bot.channels.cache.get(chanelId);
+          const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTitle(`${fullName} #${mintId}`)
+            .setURL(`https://opensea.io/assets/matic/${res.address}/${mintId}`)
+            .setDescription(
+              `**${colName} #${mintId} has Minted**\nCollection: ${fullName}\n\nMinter: [${minterId.slice(
                 0,
                 6
               )}***${minterId.slice(
                 -4
-              )}](https://polygonscan.com/address/${minterId})`,
-              footer: {
-                iconURL,
-                text: "Minted",
-              },
-              timestamp: blockInfo.timestamp * 1000,
-              color,
-              image: {
-                url: `https://opensea.mypinata.cloud/ipfs/${URI}/${mintId}.png`,
-              },
-            },
-          ],
+              )}](https://polygonscan.com/address/${minterId})`
+            )
+            .setImage(`https://ipfs.io/ipfs/${URI}/${mintId}.png`)
+            .setTimestamp(blockInfo.timestamp * 1000)
+            .setFooter({
+              text: "Minted",
+              iconURL,
+            });
+          await channel.send({ embeds: [embed] });
+          nft.blockId = res.blockNumber + 1;
+          await nft.save();
+        })
+        .on("error", (err) => {
+          console.log(err);
+        })
+        .on("changed", (res) => {
+          console.log(res);
+        })
+        .on("connected", (res) => {
+          console.log("Connected: " + res);
         });
-        data[address] = res.blockNumber + 1;
-        fs.writeFile("data.json", JSON.stringify(data), (e) => {
-          if (e) {
-            console.log(e);
-          }
-        });
-        resolve();
-      });
-  });
+    });
+  }
 };
 
 const mintCheck = () => {
@@ -130,7 +147,7 @@ const mintCheck = () => {
     "Thief Fox",
     "https://thief-fox.grk.pw/logo192.png",
     "987136039804076104",
-    [234, 98, 61],
+    0xea623d,
     "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
   );
 
@@ -140,7 +157,7 @@ const mintCheck = () => {
     "Dino Planet-7518P",
     "https://dino.grk.pw/logo192.png",
     "941598098503909397",
-    [0, 74, 115],
+    0x004a74,
     "QmXj2SHg1AZ2Fg2DC8ifyVTLSZkGwuArrqUFgYg3q1VZX8"
   );
 };
@@ -168,8 +185,6 @@ const rand = (min, max) => {
 
 dirCmd("./commands/scommands/");
 
-const { userSchem, iconRoleSchem } = require("./schema/data.js");
-const indexCmd = require("./commands/index");
 const messCoin = require("./jobs/mess_coin.js");
 const userdb = mongoose.model("570707745028964353", userSchem);
 const roledb = mongoose.model("roles", iconRoleSchem);
@@ -197,7 +212,23 @@ bot.on("ready", (_) => {
     });
   }, 30000);
 
-  indexCmd(rest, SlashCommandBuilder, Routes, bot, lang);
+  const commands = [
+    new SlashCommandBuilder().setName("balance").setDescription(lang[5]),
+    new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
+  ];
+
+  try {
+    bot.guilds.cache.forEach(async (i) => {
+      const CLIENT_ID = bot.user.id;
+      const GUILD_ID = i.id;
+
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+        body: commands,
+      });
+    });
+  } catch (error) {
+    console.error(error);
+  }
 
   job.addCallback(() => {
     const gameScan = async (gameid, voiceChannelId) => {
@@ -232,61 +263,62 @@ bot.on("ready", (_) => {
 });
 
 bot.on("presenceUpdate", (oldPresence, newPresence) => {
-  // if (newPresence.userId === "293285361231069184") {
-  //   console.log(newPresence)
+  // if (newPresence.userId === "159211173768593408") {
+  //   console.log("Test");
+  // bot.channels.cache
+  //   .get("611568076659490816")
+  //   .send("<@!1231> Чебупель ты где!!!");
   // }
-  // console.log(newPresence.activities)
+  // if (newPresence.activities.applicationId) {
+  //   console.log(newPresence.activities);
+  // }
   if (newPresence.userId === "230098678558359552") {
     if (newPresence.status === "online") {
-      if (newPresence.guild.id === '231855360716046337') {
-        bot.channels.cache.get("611568076659490816").send("<@!1231> Чебупель ты где!!!");
+      if (newPresence.guild.id === "231855360716046337") {
+        bot.channels.cache
+          .get("611568076659490816")
+          .send("<@!1231> Чебупель ты где!!!");
       }
     }
   }
 });
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
-  // console.log(newMember.guild.roles.fetch('613424726236332042'))
-  // console.log(newMember.nickname.split(/[A-z]/g, '').join())
-  const roleIcon = async () => {
-    let role = await roledb.find({});
-    for (i = 0; i < role.length; i++) {
-      const roleId = role[i].roleId;
-      if (
-        newMember._roles.find((x) => x === roleId) &&
-        !oldMember._roles.find((x) => x === roleId)
-      ) {
-        const tk = await newMember.guild.roles.fetch(roleId);
-        const icon = tk.name.replace(/[A-z0-9 _.-]/g, "");
-        if (newMember.nickname) {
-          newMember.guild.members.cache
-            .get(newMember.user.id)
-            .setNickname(
-              newMember.nickname.replace(/[^A-z0-9]/g, "") + " " + icon
-            );
-        } else {
-          newMember.guild.members.cache
-            .get(newMember.user.id)
-            .setNickname(newMember.user.username + " " + icon);
-        }
-      } else if (
-        oldMember._roles.find((x) => x === roleId) &&
-        !newMember._roles.find((x) => x === roleId)
-      ) {
-        if (newMember.nickname) {
-          newMember.guild.members.cache
-            .get(newMember.user.id)
-            .setNickname(newMember.nickname.replace(/[^A-z0-9]/g, ""));
-        } else {
-          newMember.guild.members.cache
-            .get(newMember.user.id)
-            .setNickname(newMember.user.username);
-        }
+  let role = await roledb.find({});
+  role.forEach(async (r) => {
+    const roleId = r.roleId;
+    if (
+      newMember._roles.find((x) => x === roleId) &&
+      !oldMember._roles.find((x) => x === roleId)
+    ) {
+      const tk = await newMember.guild.roles.fetch(roleId);
+      const icon = tk.name.replace(/[A-z0-9 _.-]/g, "");
+      if (newMember.nickname) {
+        newMember.guild.members.cache
+          .get(newMember.user.id)
+          .setNickname(
+            newMember.nickname.replace(/[^A-z0-9]/g, "") + " " + icon
+          );
+      } else {
+        newMember.guild.members.cache
+          .get(newMember.user.id)
+          .setNickname(newMember.user.username + " " + icon);
+      }
+    } else if (
+      oldMember._roles.find((x) => x === roleId) &&
+      !newMember._roles.find((x) => x === roleId)
+    ) {
+      if (newMember.nickname) {
+        newMember.guild.members.cache
+          .get(newMember.user.id)
+          .setNickname(newMember.nickname.replace(/[^A-z0-9]/g, ""));
+      } else {
+        newMember.guild.members.cache
+          .get(newMember.user.id)
+          .setNickname(newMember.user.username);
       }
     }
-  };
-
-  roleIcon();
+  });
 });
 
 bot.on("messageCreate", async (message) => {
@@ -303,23 +335,16 @@ bot.on("messageCreate", async (message) => {
     const currency = bot.emojis.cache.get(lang[4]);
     let ubot = await userdb.findOne({ userid: bot.user.id });
 
-    const updateBalance = (price) =>
-      new Promise(async (resolve, reject) => {
-        user.balance = user.balance - price;
-        ubot.balance = ubot.balance + price;
-        try {
-          await user.save();
-          await ubot.save();
-          resolve();
-        } catch (e) {
-          console.log(e);
-          reject();
-        }
-      });
+    const updateBalance = async (price) => {
+      user.balance = user.balance - price;
+      ubot.balance = ubot.balance + price;
+      await user.save();
+      await ubot.save();
+    };
 
     if (command === "-cash") {
       if (user.acclvl < 10) return;
-      updateBalance(1);
+      await updateBalance(1);
     }
 
     if (command === "setacc") {
@@ -396,15 +421,15 @@ bot.on("messageCreate", async (message) => {
           return await message.reply("Could not join your voice channel!");
         }
 
-        const track = await player
-          .search(query, {
+        const track = (
+          await player.search(query, {
             requestedBy: message.author,
           })
-          .then((x) => x.tracks[0]);
+        ).tracks[0];
         if (!track)
           return await message.reply(`❌ | Track **${query}** not found!`);
         queue.play(track);
-        updateBalance(price);
+        await updateBalance(price);
         await message.reply(
           `${message.author.username} оплатил песню ${
             track.title
@@ -428,7 +453,7 @@ bot.on("messageCreate", async (message) => {
         const queue = player.getQueue(message.guild);
         if (!queue) return;
         queue.skip();
-        updateBalance(price);
+        await updateBalance(price);
         await message.reply(
           `${
             message.author.username
@@ -479,9 +504,8 @@ bot.on("messageCreate", async (message) => {
     if (command === "gn") {
       const cmt = +message.content.split("gn ")[1] || 1;
       const fi = (Math.sqrt(5) + cmt) / 2;
-      message
-        .reply(`(√5+${cmt})/2`)
-        .then((q) => setTimeout(() => q.edit(String(fi)), 1000));
+      const q = await message.reply(`(√5+${cmt})/2`);
+      setTimeout(() => q.edit(String(fi)), 1000);
     }
 
     // if (command === "象" && message.channel.guild.id === "570707745028964353") {
@@ -528,7 +552,7 @@ bot.on("messageCreate", async (message) => {
     // }
 
     if (message.channelId) {
-      messCoin(message, bot, lang, collection, userdb);
+      await messCoin(message, bot, lang, collection, userdb);
     }
   } catch (e) {
     console.log(`error ${e}`);
@@ -536,6 +560,7 @@ bot.on("messageCreate", async (message) => {
 });
 
 bot.on("interactionCreate", async (inter) => {
+  const currency = bot.emojis.cache.get(lang[4]);
   if (!inter.isChatInputCommand()) return;
 
   try {
@@ -550,24 +575,11 @@ bot.on("interactionCreate", async (inter) => {
       user = await userdb.create({ userid: inter.member.user.id });
     }
 
-    const ctx = {
-      bot,
-      inter,
-      user,
-      lang,
-      userdb,
-    };
-
-    let commandfile;
-
-    if (bot.commands.has(command)) {
-      commandfile = bot.commands.get(command);
-    }
-
-    try {
-      commandfile.run(ctx);
-    } catch (e) {
-      console.log(`error: ${e}`);
+    if (command === "balance") {
+      return await inter.reply({
+        content: `${lang[3]} ${user.balance} ${currency}`,
+        ephemeral: true,
+      });
     }
   } catch (e) {
     console.log(`error: ${e}`);
@@ -615,10 +627,12 @@ bot.on("interactionCreate", async (button) => {
 });
 
 const deleteAllGlobalCommands = async () => {
-  rest
-    .put(Routes.applicationCommands(bot.user.id), { body: [] })
-    .then(() => console.log("Successfully deleted all application commands."))
-    .catch(console.error);
+  try {
+    await rest.put(Routes.applicationCommands(bot.user.id), { body: [] });
+    console.log("Successfully deleted all application commands.");
+  } catch (e) {
+    console.log(e);
+  }
 };
 
 const stdin = process.openStdin();
@@ -636,10 +650,13 @@ process.on("uncaughtException", function (err) {
 
 //DataBase
 mongoose
-  .connect(`mongodb://${tea.DBUSER}:${tea.DBPASS}@${tea.SERVER}/${tea.DB}`, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(
+    `mongodb://${config.DBUSER}:${config.DBPASS}@${config.SERVER}/${config.DB}`,
+    {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    }
+  )
   .then(() => {
     console.log("MongoDB connected!!");
   })
