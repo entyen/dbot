@@ -162,8 +162,8 @@ const nftUpdate = async (
   }
 }
 
-const mintCheck = () => {
-  nftUpdate(
+const mintCheck = async () => {
+  await nftUpdate(
     "0x10c4555A15527806Eb54b243f115e31F7aADa466",
     "Fox",
     "Thief Fox",
@@ -173,7 +173,7 @@ const mintCheck = () => {
     "Qmds5L5Sg1QLFiC3beb6sMKCH8cVR14hLeSEjsk5atgf1a"
   )
 
-  nftUpdate(
+  await nftUpdate(
     "0x18c5d5e778FCD9db00B4433697BD1FD01F3C91F7",
     "Dino",
     "Dino Planet-7518P",
@@ -191,7 +191,7 @@ const rand = (min, max) => {
 }
 
 const messCoin = require("./jobs/mess_coin.js")
-const userdb = mongoose.model("570707745028964353", userSchem)
+const userdb = mongoose.model("users", userSchem)
 const roledb = mongoose.model("roles", iconRoleSchem)
 
 const getGO = (gameid) => {
@@ -209,12 +209,12 @@ const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow")
 
 bot.on("ready", (_) => {
   console.log(`Logged in as ${bot.user.tag}!`)
-  setInterval(async (_) => {
-    let ubot = await userdb.findOne({ userid: bot.user.id })
-    bot.user.setActivity(`${ubot.balance} Aden`, {
-      type: ActivityType.Playing,
-    })
-  }, 30000)
+  // setInterval(async (_) => {
+  //   let ubot = await userdb.findOne({ userid: bot.user.id })
+  //   bot.user.setActivity(`${ubot.balance} Aden`, {
+  //     type: ActivityType.Playing,
+  //   })
+  // }, 30000)
 
   // slash commands register
   const commands = [
@@ -309,7 +309,10 @@ bot.on("ready", (_) => {
   bot.on("interactionCreate", async (interaction) => {
     if (!interaction.isUserContextMenuCommand()) return
     const user = interaction.targetId
-    const iUser = await userdb.findOne({ userid: user })
+    const iUser = (await userdb.findOne({ userid: user })) || {
+      balance: 0,
+      fine: 0,
+    }
     const currency = bot.emojis.cache.get(lang[4])
     if (interaction.commandName === "User Information") {
       const embed = new EmbedBuilder()
@@ -455,12 +458,7 @@ bot.on("messageCreate", async (message) => {
     if (!user) {
       user = await userdb.create({
         userid: message.member.user.id,
-        tuid: message.member.user.id,
       })
-    }
-    if (!user.tuid) {
-      user.tuid = message.member.user.id
-      await user.save()
     }
 
     const args = message.content.trim().split(/ +/g)
@@ -625,13 +623,13 @@ bot.on("messageCreate", async (message) => {
       const top10 = top.slice(0, 10)
       const top10map = top10.map((x) => {
         let nickname = "Unknown"
-        if (x.tuid) {
-          if (!message.guild.members.cache.get(x.tuid)) {
-            nickname = bot.users.cache.get(x.tuid).username
+        if (x.userid) {
+          if (!message.guild.members.cache.get(x.userid)) {
+            nickname = bot.users.cache.get(x.userid).username
           } else {
             nickname =
-              message.guild.members.cache.get(x.tuid).nickname ||
-              message.guild.members.cache.get(x.tuid).user.username
+              message.guild.members.cache.get(x.userid).nickname ||
+              message.guild.members.cache.get(x.userid).user.username
           }
         }
         return `${nickname} - ${x.balance} ${currency}`
@@ -714,6 +712,9 @@ bot.on("messageCreate", async (message) => {
         ),
         button("Sunflower Land", "🌻", ButtonStyle.Secondary, "sfl"),
       ]
+      const buttonGZ = [
+        button("ArcheWorld", "1100480951005499392", ButtonStyle.Secondary, "aw"),
+      ]
       const buttonAX = [
         button("Archive Key", "🔒", ButtonStyle.Secondary, "archKey"),
         button(
@@ -726,16 +727,22 @@ bot.on("messageCreate", async (message) => {
 
       let buttonRowG = new ActionRowBuilder().addComponents(buttonGX)
       let buttonRowG1 = new ActionRowBuilder().addComponents(buttonGY)
+      let buttonRowG2 = new ActionRowBuilder().addComponents(buttonGZ)
       let buttonRowA = new ActionRowBuilder().addComponents(buttonAX)
       await message.channel.send({
         content: "**Выбор роли для доступа к каналам** \nИгры:",
         components: [buttonRowG],
       })
       await message.channel.send({
-        files: [
-          "https://cdn.discordapp.com/attachments/613491096206573597/921660486330757210/separator.gif",
-        ],
+        content: " ",
+        // files: [
+        //   "https://cdn.discordapp.com/attachments/613491096206573597/921660486330757210/separator.gif",
+        // ],
         components: [buttonRowG1],
+      })
+      await message.channel.send({
+        content: " ",
+        components: [buttonRowG2],
       })
       await message.channel.send({
         content: "Другое:",
@@ -1023,6 +1030,8 @@ bot.on("interactionCreate", async (button) => {
     ? roleGiver("797892063830999080")
     : button.customId == "nwr"
     ? roleGiver("874578068210085918")
+    : button.customId == "aw"
+    ? roleGiver("1100477620178653205")
     : button.customId == "archKey"
     ? roleGiver("861743745083244586")
     : button.customId == "sfl"
