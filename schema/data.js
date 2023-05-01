@@ -8,6 +8,7 @@ const userSchem = new mongoose.Schema({
   fine: { type: Number, default: 0 },
   acclvl: { type: Number, default: 0 },
   web3: { type: String, default: null },
+  guildid: { type: String, default: null },
   nonce: { type: Number, default: Math.floor(Math.random() * 1000000) },
 });
 

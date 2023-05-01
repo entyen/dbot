@@ -219,7 +219,6 @@ bot.on("ready", (_) => {
   // slash commands register
   const commands = [
     new SlashCommandBuilder().setName("balance").setDescription(lang[5]),
-    new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
     new SlashCommandBuilder()
       .setName("farm")
       .setDescription(lang[9])
@@ -304,6 +303,17 @@ bot.on("ready", (_) => {
           .setDescriptionLocalizations({ ru: "Имя попуска" })
           .setRequired(true)
       ),
+    new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
+    new SlashCommandBuilder()
+      .setName("awinfo")
+      .setDescription("Check info about user")
+      .addUserOption((option) =>
+        option
+          .setName("user")
+          .setNameLocalizations({ ru: "пользователь" })
+          .setDescription("Select user")
+          .setRequired(true)
+      ),
   ]
 
   bot.on("interactionCreate", async (interaction) => {
@@ -333,21 +343,21 @@ bot.on("ready", (_) => {
   const rest = new REST({ version: "9" }).setToken(config.TOKEN)
 
   try {
-    bot.guilds.cache.forEach(async (i) => {
-      const CLIENT_ID = bot.user.id
-      const GUILD_ID = i.id
+      bot.guilds.cache.forEach(async (i) => {
+        const CLIENT_ID = bot.user.id
+        const GUILD_ID = i.id
+        const awcommands = new Array(...commands)
 
-      if (GUILD_ID == "944296839170109530") {
-        commands.splice(1, 3)
+        if (GUILD_ID === "570707745028964353") {
+          await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+            body: commands,
+          })
+          return
+        }
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-          body: commands,
+          body: awcommands.splice(9, 11),
         })
-        return
-      }
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-        body: commands,
       })
-    })
   } catch (error) {
     console.error(error)
   }
@@ -384,27 +394,6 @@ bot.on("ready", (_) => {
     ]
     ren.setName(arrName[rand(0, arrName.length)])
   })
-})
-
-bot.on("presenceUpdate", (oldPresence, newPresence) => {
-  // if (newPresence.userId === "159211173768593408") {
-  //   console.log("Test");
-  // bot.channels.cache
-  //   .get("611568076659490816")
-  //   .send("<@!1231> Чебупель ты где!!!");
-  // }
-  // if (newPresence.activities.applicationId) {
-  //   console.log(newPresence.activities);
-  // }
-  if (newPresence.userId === "230098678558359552") {
-    if (newPresence.status === "online") {
-      if (newPresence.guild.id === "231855360716046337") {
-        bot.channels.cache
-          .get("611568076659490816")
-          .send("<@!1231> Чебупель ты где!!!")
-      }
-    }
-  }
 })
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -713,7 +702,12 @@ bot.on("messageCreate", async (message) => {
         button("Sunflower Land", "🌻", ButtonStyle.Secondary, "sfl"),
       ]
       const buttonGZ = [
-        button("ArcheWorld", "1100480951005499392", ButtonStyle.Secondary, "aw"),
+        button(
+          "ArcheWorld",
+          "1100480951005499392",
+          ButtonStyle.Secondary,
+          "aw"
+        ),
       ]
       const buttonAX = [
         button("Archive Key", "🔒", ButtonStyle.Secondary, "archKey"),
@@ -761,6 +755,7 @@ bot.on("messageCreate", async (message) => {
 bot.on("interactionCreate", async (inter) => {
   const currency = bot.emojis.cache.get(lang[4])
   const sflcurr = bot.emojis.cache.get("1073936545280688229")
+  const bslt = bot.emojis.cache.get("1100983758951301202")
   if (!inter.isChatInputCommand()) return
 
   try {
@@ -794,7 +789,7 @@ bot.on("interactionCreate", async (inter) => {
         user.nonce = Math.floor(Math.random() * 1000000)
         await user.save()
         await inter.reply({
-          content: `Connect Wallet: https://grk.pw/connect?id=${inter.member.user.id}&nonce=${user.nonce}&sig=dis`,
+          content: `Connect Wallet: [Connecton URL](https://grk.pw/connect?id=${inter.member.user.id}&nonce=${user.nonce}&sig=dis&guildid=${inter.guildId})`,
           ephemeral: true,
           fetchReply: true,
         })
@@ -865,7 +860,7 @@ bot.on("interactionCreate", async (inter) => {
           **Balance**: ${
             Math.round(inventory.state.balance * 100) / 100
           } ${sflcurr}
-          **Plots**: ${inventory.state.expansions.length} ⛱
+          **Plots**: X ⛱
           `
             )
             .setFooter({
@@ -960,6 +955,152 @@ bot.on("interactionCreate", async (inter) => {
             "https://media.discordapp.net/attachments/1070730397618552932/1085917127644565515/3.png"
           )
         return await inter.reply({ embeds: [popEmbed] })
+      case "awinfo":
+        const axios = require("axios")
+        const { parse } = require("node-html-parser")
+        if (!userDB || !userDB.web3)
+          return await inter.reply({
+            content: `Пользователь ${iUser.username} не подключил кошелек`,
+            ephemeral: true,
+          })
+        const nasaInfo = await axios.get(
+          `https://scope.nasa.xbluesalt.io/account/${userDB.web3}`
+        )
+        const htmlData = parse(nasaInfo.data)
+        const balBSLT = htmlData.querySelector(
+          ".tx-detail .row .row-value"
+        ).innerHTML
+        const parsBSLT = balBSLT
+          .replace("<span>", " ")
+          .replace("</span>", bslt)
+          .replace("BSLT", "")
+        const infoBslt = (x) =>
+          axios
+            .post(
+              `https://scope.nasa.xbluesalt.io/ScopeListSearchByWallet?pageNo=${x}&hash=${userDB.web3}`,
+              {
+                baseURL: "https://scope.nasa.xbluesalt.io",
+              },
+              {
+                headers: {
+                  Cookie: "XL-REGION=NASA",
+                  Referer: `https://scope.nasa.xbluesalt.io/account/${userDB.web3}?pageNo=1`,
+                },
+              }
+            )
+            .then((resp) => resp.data.scopes)
+            .catch((error) => {
+              console.log("create user api error:", error)
+            })
+        await inter.deferReply() //discord think function
+
+        // parse bslt scope info to 1 array
+        const transactArr = []
+        for (let i = 1; i; i++) {
+          const q = await infoBslt(i)
+          if (q.length !== 0) {
+            transactArr.push(...q.slice(0, 20))
+          } else {
+            break
+          }
+        }
+
+        // add timestamp to bslt array
+        for (let i = 0; i < transactArr.length; i++) {
+          const o = transactArr[i]
+          const dateBL = Date.parse(o.time.replace("/ ", "").replace("+0", ""))
+          o.timestamp = dateBL / 1000
+        }
+
+        // find today start timestamp
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const timestampStart = Math.floor(todayStart.getTime() / 1000)
+        const rentTime = 28 * 24 * 60 * 60
+
+        // make userInfo object on arrays contain infomration on filtered tarsact array
+        const userInfo = {
+          auction: transactArr.filter((a) => a.txType === "Auction"),
+          rent: transactArr.filter((a) => a.txType === "Rental Fee"),
+          deposit: transactArr
+            .filter((a) => a.txType === "Deposit")
+            .reduce((b, c) => +b + +c.amount, 0),
+          windraw: transactArr
+            .filter((a) => a.txType === "Withdrawal")
+            .reduce((b, c) => +b + +c.amount - 10, 0),
+          activeRent: transactArr
+            .filter((a) => a.txType === "Rental Fee")
+            .filter(
+              (b) => b.timestamp + rentTime > Math.floor(Date.now() / 1000)
+            ),
+          aucSell: transactArr
+            .filter((a) => a.txType === "Auction")
+            .filter((b) => b.to === userDB.web3),
+          aucSellBT: transactArr
+            .filter((a) => a.txType === "Auction")
+            .filter((b) => b.to === userDB.web3)
+            .reduce((c, d) => +c + +d.amount - +d.amount * 0.1, 0),
+          aucBuy: transactArr
+            .filter((a) => a.txType === "Auction")
+            .filter((b) => b.from === userDB.web3),
+          aucBuyBT: transactArr
+            .filter((a) => a.txType === "Auction")
+            .filter((b) => b.from === userDB.web3)
+            .reduce((c, d) => +c + +d.amount, 0),
+          todayTransact: transactArr.filter(
+            (a) => a.timestamp > timestampStart
+          ),
+        }
+
+        const rentInfo = (() => {
+          let endRent = ""
+          for (let i = 0; i < userInfo.activeRent.length; i++) {
+            endRent += `\nТера №${i + 1} = <t:${
+              userInfo.activeRent[i].timestamp + rentTime
+            }:F>`
+          }
+          return endRent
+        })()
+
+        // main embed message
+        const awEmbed = new EmbedBuilder()
+          .setColor(0x6fa8dc)
+          .setTitle("Инфо")
+          .setAuthor({
+            name: iUser.username,
+            iconURL: `https://cdn.discordapp.com/avatars/${iUser.id}/${iUser.avatar}.png`,
+          })
+          .setDescription(
+            `Баланс: **${parsBSLT}**
+            Транзакций: **${transactArr.length}**
+            Пополнение: **${userInfo.deposit}** ${bslt}
+            Вывод: **${userInfo.windraw}** ${bslt}
+            Продаж: **${
+              userInfo.aucSell.length
+            }** на сумму **${userInfo.aucSellBT.toFixed(2)}** ${bslt}
+            Покупок: **${
+              userInfo.aucBuy.length
+            }** на сумму **${userInfo.aucBuyBT.toFixed(2)}** ${bslt}
+            Аренд земли: **${userInfo.rent.length}**
+            Активных Аренд: **${userInfo.activeRent.length}**`
+          )
+          .setFooter({
+            text: `ArchWorld`,
+            iconURL:
+              "https://cdn.discordapp.com/attachments/461187392074940417/1101535065881710713/archworld.png",
+          })
+
+        // ternar check user have active rent land or not if not don't send land info
+        userInfo.activeRent.length > 0
+          ? awEmbed.setFields([
+              {
+                inline: false,
+                name: "Время до конца Аренды",
+                value: rentInfo,
+              },
+            ])
+          : null
+        return await inter.editReply({ embeds: [awEmbed] })
       default:
         return await inter.reply("Команда не найдена")
     }
@@ -974,6 +1115,16 @@ app.post("/dis/connect:user_id", async (req, res) => {
   if (!user) {
     res.send({ error: "User not found" }).status(404)
   } else {
+    const guildArr = []
+    bot.guilds.cache.forEach((o) => {
+      return guildArr.push(o.id)
+    })
+    if (!guildArr.includes(req.body.guildid)) {
+      return res.send({ error: "Guild not found in bot" }).status(400)
+    }
+    if (!req.body.guildid) {
+      return res.send({ error: "Guild id not found" }).status(400)
+    }
     if (user.nonce.toString() !== req.body.nonce) {
       return res.send({ error: "Nonce not match" }).status(400)
     }
@@ -988,6 +1139,7 @@ app.post("/dis/connect:user_id", async (req, res) => {
       .members.cache.get(req.body.userId)
       .roles.add("1041269388139057172")
       .catch(null)
+    user.guildid = req.body.guildid
     user.web3 = req.body.address
     user.nonce = Math.floor(Math.random() * 1000000)
     user.save()
