@@ -18,6 +18,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
   AttachmentBuilder,
+  ComponentType,
 } = require("discord.js")
 const mongoose = require("mongoose")
 const steam = require("steam-web")
@@ -29,7 +30,6 @@ app.use(express.json())
 
 // express link web3 and discord bot account
 app.post("/webhook", async (req, res) => {
-  console.log(req.body)
   res.send("Hello World!")
 })
 
@@ -48,11 +48,10 @@ const lang = JSON.parse(fs.readFileSync("en.json", "utf-8"))
 
 const bot = new Client({
   intents: [
-    "Guilds",
-    "GuildVoiceStates",
-    "GuildMessages",
-    "GuildMembers",
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildPresences,
     GatewayIntentBits.DirectMessages,
@@ -184,7 +183,7 @@ const mintCheck = async () => {
   )
 }
 
-mintCheck()
+// mintCheck()
 
 const rand = (min, max) => {
   return Math.floor(Math.random() * (max - min) + min)
@@ -194,8 +193,8 @@ const messCoin = require("./jobs/mess_coin.js")
 const userdb = mongoose.model("users", userSchem)
 const roledb = mongoose.model("roles", iconRoleSchem)
 
-const getGO = (gameid) => {
-  return new Promise((resolve) => {
+const getGO = (gameid) =>
+  new Promise((resolve) => {
     st.getNumberOfCurrentPlayers({
       appid: gameid,
       callback: (err, data) => {
@@ -203,7 +202,6 @@ const getGO = (gameid) => {
       },
     })
   })
-}
 
 const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow")
 
@@ -304,16 +302,6 @@ bot.on("ready", (_) => {
           .setRequired(true)
       ),
     new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
-    new SlashCommandBuilder()
-      .setName("awinfo")
-      .setDescription("Check info about user")
-      .addUserOption((option) =>
-        option
-          .setName("user")
-          .setNameLocalizations({ ru: "пользователь" })
-          .setDescription("Select user")
-          .setRequired(true)
-      ),
   ]
 
   bot.on("interactionCreate", async (interaction) => {
@@ -343,21 +331,21 @@ bot.on("ready", (_) => {
   const rest = new REST({ version: "9" }).setToken(config.TOKEN)
 
   try {
-      bot.guilds.cache.forEach(async (i) => {
-        const CLIENT_ID = bot.user.id
-        const GUILD_ID = i.id
-        const awcommands = new Array(...commands)
+    bot.guilds.cache.forEach(async (i) => {
+      const CLIENT_ID = bot.user.id
+      const GUILD_ID = i.id
+      const awcommands = new Array(...commands)
 
-        if (GUILD_ID === "570707745028964353") {
-          await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-            body: commands,
-          })
-          return
-        }
+      if (GUILD_ID === "570707745028964353") {
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-          body: awcommands.splice(9, 11),
+          body: commands,
         })
+        return
+      }
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+        body: awcommands.splice(9, 11),
       })
+    })
   } catch (error) {
     console.error(error)
   }
@@ -650,6 +638,63 @@ bot.on("messageCreate", async (message) => {
       setTimeout(() => q.edit(String(fi)), 1000)
     }
 
+    if (message.content === "multipage") {
+      const pages = [
+        new EmbedBuilder()
+          .setTitle("Page 1")
+          .setDescription("This is the first page."),
+        new EmbedBuilder()
+          .setTitle("Page 2")
+          .setDescription("This is the second page."),
+        new EmbedBuilder()
+          .setTitle("Page 3")
+          .setDescription("This is the third page."),
+      ]
+
+      let currentPage = 0
+
+      const row = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId("previous")
+            .setLabel("Previous")
+            .setStyle(ButtonStyle.Secondary)
+        )
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId("next")
+            .setLabel("Next")
+            .setStyle(ButtonStyle.Secondary)
+        )
+
+      message
+        .reply({ embeds: [pages[currentPage]], components: [row] })
+        .then((msg) => {
+          const collector = msg.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 60000,
+          })
+
+          collector.on("collect", (interaction) => {
+            if (interaction.customId === "previous") {
+              if (currentPage > 0) {
+                currentPage--
+                interaction.update({ embeds: [pages[currentPage]] })
+              }
+            } else if (interaction.customId === "next") {
+              if (currentPage < pages.length - 1) {
+                currentPage++
+                interaction.update({ embeds: [pages[currentPage]] })
+              }
+            }
+          })
+
+          collector.on("end", () => {
+            msg.edit({ components: [] })
+          })
+        })
+    }
+
     if (command === "roll") {
       const cmt = +message.content.split("roll ")[1] || 1
       if (cmt > 100 || cmt < 0)
@@ -669,79 +714,94 @@ bot.on("messageCreate", async (message) => {
     }
 
     if (command === "象" && message.channel.guild.id === "570707745028964353") {
-      let button = (gamen, emojid, style, cbid) =>
-        new ButtonBuilder()
-          .setLabel(gamen)
-          .setEmoji(emojid)
-          .setStyle(style)
-          .setCustomId(cbid)
+      const buttons = {
+        buttonGX: [
+          {
+            label: "New World",
+            emoji: "921408850253471837",
+            style: ButtonStyle.Secondary,
+            customId: "nwr",
+          },
+          {
+            label: "Fallut 76",
+            emoji: "861748887059693608",
+            style: ButtonStyle.Secondary,
+            customId: "fl76",
+          },
+          {
+            label: "Black Desert",
+            emoji: "861747964552675329",
+            style: ButtonStyle.Secondary,
+            customId: "bdo",
+          },
+          {
+            label: "TESO",
+            emoji: "921418213928083556",
+            style: ButtonStyle.Secondary,
+            customId: "teso",
+          },
+          {
+            label: "Gta 5 RP",
+            emoji: "638135208612200459",
+            style: ButtonStyle.Secondary,
+            customId: "gta5rp",
+          },
+        ],
+        buttonGY: [
+          {
+            label: "Sunflower Land",
+            emoji: "🌻",
+            style: ButtonStyle.Secondary,
+            customId: "sfl",
+          },
+          {
+            label: "ArcheWorld",
+            emoji: "1100480951005499392",
+            style: ButtonStyle.Secondary,
+            customId: "aw",
+          },
+        ],
+        buttonAX: [
+          {
+            label: "Archive Key",
+            emoji: "🔒",
+            style: ButtonStyle.Secondary,
+            customId: "archKey",
+          },
+          {
+            label: "Linux User",
+            emoji: "695326940617506826",
+            style: ButtonStyle.Secondary,
+            customId: "linux",
+          },
+        ],
+      }
 
-      const buttonGX = [
-        button("New World", "921408850253471837", ButtonStyle.Secondary, "nwr"),
-        button(
-          "Fallut 76",
-          "861748887059693608",
-          ButtonStyle.Secondary,
-          "fl76"
-        ),
-        button(
-          "Black Desert",
-          "861747964552675329",
-          ButtonStyle.Secondary,
-          "bdo"
-        ),
-      ]
-      const buttonGY = [
-        button("TESO", "921418213928083556", ButtonStyle.Secondary, "teso"),
-        button(
-          "Gta 5 RP",
-          "638135208612200459",
-          ButtonStyle.Secondary,
-          "gta5rp"
-        ),
-        button("Sunflower Land", "🌻", ButtonStyle.Secondary, "sfl"),
-      ]
-      const buttonGZ = [
-        button(
-          "ArcheWorld",
-          "1100480951005499392",
-          ButtonStyle.Secondary,
-          "aw"
-        ),
-      ]
-      const buttonAX = [
-        button("Archive Key", "🔒", ButtonStyle.Secondary, "archKey"),
-        button(
-          "Linux User",
-          "695326940617506826",
-          ButtonStyle.Secondary,
-          "linux"
-        ),
-      ]
+      const createButtons = (buttonArray) =>
+        buttonArray.map((button) =>
+          new ButtonBuilder()
+            .setLabel(button.label)
+            .setEmoji(button.emoji)
+            .setStyle(button.style)
+            .setCustomId(button.customId)
+        )
 
-      let buttonRowG = new ActionRowBuilder().addComponents(buttonGX)
-      let buttonRowG1 = new ActionRowBuilder().addComponents(buttonGY)
-      let buttonRowG2 = new ActionRowBuilder().addComponents(buttonGZ)
-      let buttonRowA = new ActionRowBuilder().addComponents(buttonAX)
-      await message.channel.send({
-        content: "**Выбор роли для доступа к каналам** \nИгры:",
-        components: [buttonRowG],
-      })
-      await message.channel.send({
-        content: " ",
-        // files: [
-        //   "https://cdn.discordapp.com/attachments/613491096206573597/921660486330757210/separator.gif",
-        // ],
-        components: [buttonRowG1],
-      })
-      await message.channel.send({
-        content: " ",
-        components: [buttonRowG2],
-      })
-      await message.channel.send({
-        content: "Другое:",
-        components: [buttonRowA],
-      })
+      const components = Object.entries(buttons).map(([key, buttonArray]) =>
+        new ActionRowBuilder().addComponents(createButtons(buttonArray))
+      )
+
+      const content = [
+        "**Выбор роли для доступа к каналам** \nИгры:",
+        " ",
+        "Другое:",
+      ]
+      components.forEach(
+        async (component, index) =>
+          await message.channel.send({
+            content: content[index],
+            components: [component],
+          })
+      )
     }
 
     if (message.channelId) {
@@ -755,7 +815,7 @@ bot.on("messageCreate", async (message) => {
 bot.on("interactionCreate", async (inter) => {
   const currency = bot.emojis.cache.get(lang[4])
   const sflcurr = bot.emojis.cache.get("1073936545280688229")
-  const bslt = bot.emojis.cache.get("1100983758951301202")
+  const bslt = bot.emojis.cache.get("1102467668310769694")
   if (!inter.isChatInputCommand()) return
 
   try {
@@ -788,8 +848,17 @@ bot.on("interactionCreate", async (inter) => {
       case "walletset":
         user.nonce = Math.floor(Math.random() * 1000000)
         await user.save()
+        const connectButton = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("Connect Wallet")
+            .setStyle(ButtonStyle.Link)
+            .setURL(
+              `https://grk.pw/connect?id=${inter.member.user.id}&nonce=${user.nonce}&sig=dis&guildid=${inter.guildId}`
+            )
+        )
         await inter.reply({
-          content: `Connect Wallet: [Connecton URL](https://grk.pw/connect?id=${inter.member.user.id}&nonce=${user.nonce}&sig=dis&guildid=${inter.guildId})`,
+          content: "You can connect wallet on button below",
+          components: [connectButton],
           ephemeral: true,
           fetchReply: true,
         })
@@ -809,11 +878,16 @@ bot.on("interactionCreate", async (inter) => {
         if (!bumpId) return await inter.reply("Пользователь не имеет бампкин")
         const bumpUri = await bumpContract.methods.tokenURI(bumpId).call()
         const bumpInfo = await fetch(bumpUri).then((res) => res.json())
+        const response = await fetch(bumpInfo.image)
+        const imageBuffer = await response.buffer()
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: "bumpkin.jpg",
+        })
         const bumpEmbed = new EmbedBuilder()
           .setColor(0xea623d)
           .setTitle(bumpInfo.name)
           .setURL(bumpInfo.image)
-          .setImage(bumpInfo.image)
+          .setImage("attachment://bumpkin.jpg")
           .setTimestamp(Date.now())
           .setAuthor({
             name: iUser.username,
@@ -824,7 +898,7 @@ bot.on("interactionCreate", async (inter) => {
             iconURL:
               "https://cdn.discordapp.com/attachments/975967980443795477/1064819066914738206/slf.png",
           })
-        return await inter.reply({ embeds: [bumpEmbed] })
+        return await inter.reply({ embeds: [bumpEmbed], files: [attachment] })
       case "farm":
         if (!userDB.web3)
           return await inter.reply(
@@ -955,157 +1029,11 @@ bot.on("interactionCreate", async (inter) => {
             "https://media.discordapp.net/attachments/1070730397618552932/1085917127644565515/3.png"
           )
         return await inter.reply({ embeds: [popEmbed] })
-      case "awinfo":
-        const axios = require("axios")
-        const { parse } = require("node-html-parser")
-        if (!userDB || !userDB.web3)
-          return await inter.reply({
-            content: `Пользователь ${iUser.username} не подключил кошелек`,
-            ephemeral: true,
-          })
-        const nasaInfo = await axios.get(
-          `https://scope.nasa.xbluesalt.io/account/${userDB.web3}`
-        )
-        const htmlData = parse(nasaInfo.data)
-        const balBSLT = htmlData.querySelector(
-          ".tx-detail .row .row-value"
-        ).innerHTML
-        const parsBSLT = balBSLT
-          .replace("<span>", " ")
-          .replace("</span>", bslt)
-          .replace("BSLT", "")
-        const infoBslt = (x) =>
-          axios
-            .post(
-              `https://scope.nasa.xbluesalt.io/ScopeListSearchByWallet?pageNo=${x}&hash=${userDB.web3}`,
-              {
-                baseURL: "https://scope.nasa.xbluesalt.io",
-              },
-              {
-                headers: {
-                  Cookie: "XL-REGION=NASA",
-                  Referer: `https://scope.nasa.xbluesalt.io/account/${userDB.web3}?pageNo=1`,
-                },
-              }
-            )
-            .then((resp) => resp.data.scopes)
-            .catch((error) => {
-              console.log("create user api error:", error)
-            })
-        await inter.deferReply() //discord think function
-
-        // parse bslt scope info to 1 array
-        const transactArr = []
-        for (let i = 1; i; i++) {
-          const q = await infoBslt(i)
-          if (q.length !== 0) {
-            transactArr.push(...q.slice(0, 20))
-          } else {
-            break
-          }
-        }
-
-        // add timestamp to bslt array
-        for (let i = 0; i < transactArr.length; i++) {
-          const o = transactArr[i]
-          const dateBL = Date.parse(o.time.replace("/ ", "").replace("+0", ""))
-          o.timestamp = dateBL / 1000
-        }
-
-        // find today start timestamp
-        const todayStart = new Date()
-        todayStart.setHours(0, 0, 0, 0)
-        const timestampStart = Math.floor(todayStart.getTime() / 1000)
-        const rentTime = 28 * 24 * 60 * 60
-
-        // make userInfo object on arrays contain infomration on filtered tarsact array
-        const userInfo = {
-          auction: transactArr.filter((a) => a.txType === "Auction"),
-          rent: transactArr.filter((a) => a.txType === "Rental Fee"),
-          deposit: transactArr
-            .filter((a) => a.txType === "Deposit")
-            .reduce((b, c) => +b + +c.amount, 0),
-          windraw: transactArr
-            .filter((a) => a.txType === "Withdrawal")
-            .reduce((b, c) => +b + +c.amount - 10, 0),
-          activeRent: transactArr
-            .filter((a) => a.txType === "Rental Fee")
-            .filter(
-              (b) => b.timestamp + rentTime > Math.floor(Date.now() / 1000)
-            ),
-          aucSell: transactArr
-            .filter((a) => a.txType === "Auction")
-            .filter((b) => b.to === userDB.web3),
-          aucSellBT: transactArr
-            .filter((a) => a.txType === "Auction")
-            .filter((b) => b.to === userDB.web3)
-            .reduce((c, d) => +c + +d.amount - +d.amount * 0.1, 0),
-          aucBuy: transactArr
-            .filter((a) => a.txType === "Auction")
-            .filter((b) => b.from === userDB.web3),
-          aucBuyBT: transactArr
-            .filter((a) => a.txType === "Auction")
-            .filter((b) => b.from === userDB.web3)
-            .reduce((c, d) => +c + +d.amount, 0),
-          todayTransact: transactArr.filter(
-            (a) => a.timestamp > timestampStart
-          ),
-        }
-
-        const rentInfo = (() => {
-          let endRent = ""
-          for (let i = 0; i < userInfo.activeRent.length; i++) {
-            endRent += `\nТера №${i + 1} = <t:${
-              userInfo.activeRent[i].timestamp + rentTime
-            }:F>`
-          }
-          return endRent
-        })()
-
-        // main embed message
-        const awEmbed = new EmbedBuilder()
-          .setColor(0x6fa8dc)
-          .setTitle("Инфо")
-          .setAuthor({
-            name: iUser.username,
-            iconURL: `https://cdn.discordapp.com/avatars/${iUser.id}/${iUser.avatar}.png`,
-          })
-          .setDescription(
-            `Баланс: **${parsBSLT}**
-            Транзакций: **${transactArr.length}**
-            Пополнение: **${userInfo.deposit}** ${bslt}
-            Вывод: **${userInfo.windraw}** ${bslt}
-            Продаж: **${
-              userInfo.aucSell.length
-            }** на сумму **${userInfo.aucSellBT.toFixed(2)}** ${bslt}
-            Покупок: **${
-              userInfo.aucBuy.length
-            }** на сумму **${userInfo.aucBuyBT.toFixed(2)}** ${bslt}
-            Аренд земли: **${userInfo.rent.length}**
-            Активных Аренд: **${userInfo.activeRent.length}**`
-          )
-          .setFooter({
-            text: `ArchWorld`,
-            iconURL:
-              "https://cdn.discordapp.com/attachments/461187392074940417/1101535065881710713/archworld.png",
-          })
-
-        // ternar check user have active rent land or not if not don't send land info
-        userInfo.activeRent.length > 0
-          ? awEmbed.setFields([
-              {
-                inline: false,
-                name: "Время до конца Аренды",
-                value: rentInfo,
-              },
-            ])
-          : null
-        return await inter.editReply({ embeds: [awEmbed] })
       default:
         return await inter.reply("Команда не найдена")
     }
   } catch (e) {
-    console.log(`error: ${e}`)
+    console.error(`error: ${e}`)
   }
 })
 
