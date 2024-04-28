@@ -6,26 +6,38 @@ module.exports = async function (message, bot, lang, collection, userdb) {
     return Math.floor(Math.random() * (max - min) + min);
   };
 
-  const randRand = () => {
-    if (message.member.roles.cache.has("854246873018910408")) {
-      t = 50;
+  const chance = (chance) => {
+    return randCurr(0, 10000) <= chance * 100
+  }
+
+  const randRand = (chances = [30, 10, 20, 20, 18, 2], mults = [1, 2, 3, 4, 5, 50]) => {
+    if (chances.length !== mults.length) return 0
+
+    if (message.member.roles.cache.has("1001954579300229291")) { // TODO
+      luck = 2;
     } else {
-      t = 0;
+      luck = 1;
     }
-    const rNum = randCurr(0, 1000);
-    if (rNum <= 300 - t) {
-      return 1; // 30%
-    } else if (rNum >= 300 - t && rNum <= 400 - t) {
-      return 2; // 10%
-    } else if (rNum >= 400 - t && rNum <= 600 - t) {
-      return 3; // 20%
-    } else if (rNum >= 600 - t && rNum <= 800 - t) {
-      return 4; // 20%
-    } else if (rNum >= 800 - t && rNum <= 980 - t) {
-      return 5; // 18%
-    } else if (rNum >= 980 - t / 2 && rNum <= 1000) {
-      return 50; // 2%
+
+    const rnd = randCurr(0, 10000);
+
+    const chancesInc = chances.map(x => x * 100);
+
+    const chancesLuck = chancesInc.map(x => x * luck);
+
+    const distrib = chancesLuck.map(x => x / rnd);
+
+    const distribBinary = distrib.map(x => Math.round(x) > 0 ? 1 : 0);
+
+    const resMapping = {};
+    for (let i = 0; i < distribBinary.length; i++) {
+      const choice = distribBinary[i];
+      resMapping[chances[i]] = choice * mults[i];
     }
+
+    const cInd = Object.values(resMapping).reduce((iMax, x, i, arr) => x > arr[iMax] ? i : iMax, 0);
+
+    return Object.values(resMapping)[cInd];
   };
 
   const cooldowns = new Map();
@@ -58,10 +70,8 @@ module.exports = async function (message, bot, lang, collection, userdb) {
   bot.channels.cache
     .get("878075420342374402")
     .send(
-      `Get ${
-        currAdd - user.balance
-      } ${currency} curr balance ${currAdd} ${currency} user: ${
-        message.author.username
+      `Get ${currAdd - user.balance
+      } ${currency} curr balance ${currAdd} ${currency} user: ${message.author.username
       }`
     );
   user.balance = currAdd;

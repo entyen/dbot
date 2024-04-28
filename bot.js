@@ -189,9 +189,24 @@ const rand = (min, max) => {
   return Math.floor(Math.random() * (max - min) + min)
 }
 
+const TimeOut = (time) =>
+  new Promise((resolve, reject) => {
+    setTimeout(resolve, time)
+  })
+
 const messCoin = require("./jobs/mess_coin.js")
 const userdb = mongoose.model("users", userSchem)
 const roledb = mongoose.model("roles", iconRoleSchem)
+
+//MINECRAFT Modules
+// const { promisify } = require('util');
+// const exec = promisify(require('child_process').exec)
+const { Rcon } = require("rcon-client")
+const rcon = new Rcon({
+  host: "localhost",
+  port: 25575,
+  password: config.RCON_PASS,
+})
 
 const getGO = (gameid) =>
   new Promise((resolve) => {
@@ -207,6 +222,17 @@ const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow")
 
 bot.on("ready", (_) => {
   console.log(`Logged in as ${bot.user.tag}!`)
+  //MINECRAFT RCON Connection
+  rcon.on("connect", () => console.log("Minecraft RCON: connected"))
+  rcon.on("authenticated", () => console.log("Minecraft RCON: authenticated"))
+  rcon.on("end", async () => console.log("Minecraft RCON: end"))
+  setTimeout(async () => {
+    await rcon
+      .connect()
+      .catch((err) => console.log(`MINECRAFT RCON: ${err.code}`))
+  }, 1000)
+  //MINECRAFT RCON Connection
+
   // setInterval(async (_) => {
   //   let ubot = await userdb.findOne({ userid: bot.user.id })
   //   bot.user.setActivity(`${ubot.balance} Aden`, {
@@ -239,6 +265,15 @@ bot.on("ready", (_) => {
         option
           .setName("amount")
           .setDescription("Amount to pay")
+          .setRequired(true)
+      ),
+    new SlashCommandBuilder()
+      .setName("calc")
+      .setDescription("Calc cripto cource")
+      .addNumberOption((option) =>
+        option
+          .setName("value")
+          .setDescription("Value to calculate")
           .setRequired(true)
       ),
     new SlashCommandBuilder()
@@ -288,6 +323,10 @@ bot.on("ready", (_) => {
       .setName("User Balance")
       .setNameLocalizations({ ru: "Баланс пользователя" })
       .setType(ApplicationCommandType.User),
+    new ContextMenuCommandBuilder()
+      .setName("Donate 3 Aden")
+      .setNameLocalizations({ ru: "Задонить 3 Адены" })
+      .setType(ApplicationCommandType.User),
     new SlashCommandBuilder()
       .setName("popusk")
       .setNameLocalizations({ ru: "попуск" })
@@ -306,27 +345,65 @@ bot.on("ready", (_) => {
 
   bot.on("interactionCreate", async (interaction) => {
     if (!interaction.isUserContextMenuCommand()) return
-    const user = interaction.targetId
-    const iUser = (await userdb.findOne({ userid: user })) || {
+    const iUser = (await userdb.findOne({ userid: interaction.targetId })) || {
       balance: 0,
       fine: 0,
     }
+    const uUser = (await userdb.findOne({ userid: interaction.user.id })) || {
+      balance: 0,
+      fine: 0,
+    }
+
     const currency = bot.emojis.cache.get(lang[4])
     if (interaction.commandName === "User Information") {
       const embed = new EmbedBuilder()
         .setColor("#0099ff")
         .setTitle("User Information")
         .setDescription(
-          `User: <@${user}>\n\n **Balance**: ${iUser.balance} ${currency}\n **Fine**: ${iUser.fine} ${currency}`
+          `User: <@${iUser}>\n\n **Balance**: ${iUser.balance} ${currency}\n **Fine**: ${iUser.fine} ${currency}`
         )
       await interaction.reply({ embeds: [embed] })
-    } else if (interaction.commandName === "User Balance") {
+    }
+    if (interaction.commandName === "User Balance") {
       await interaction.reply({
         content: `${iUser.balance} Aden`,
         ephemeral: true,
       })
     }
+    if (interaction.commandName === "Donate 3 Aden") {
+      uUser.balance -= 3
+      iUser.balance += 3
+      await uUser.save()
+      await iUser.save()
+      await interaction.reply({
+        content: `You succecful send 3 Adena to <@${iUser.userid}>`,
+        ephemeral: true,
+      })
+      // const modal = new ModalBuilder()
+      //   .setCustomId('adenaDonate')
+      //   .setTitle('Adena Donation');
+      // const adenaDonateInput = new TextInputBuilder()
+      //   .setCustomId('adenaDonateInput')
+      //   .setLabel("How many adena you want to Donate?")
+      //   .setMaxLength(3)
+      //   .setMinLength(1)
+      //   .setValue("3")
+      //   .setStyle(TextInputStyle.Short)
+      //   .setRequired(true);
+      // const firstActionRow = new ActionRowBuilder().addComponents(adenaDonateInput)
+      // modal.addComponents(firstActionRow);
+      // await interaction.showModal(modal);
+    }
   })
+
+  // bot.on("interactionCreate", async interaction => {
+  //   if (!interaction.isModalSubmit()) return;
+  //   if (interaction.customId === 'adenaDonate') {
+  //     console.log(interaction)
+  //     const adenaDonateInput = interaction.fields.getTextInputValue('adenaDonateInput')
+  //     await interaction.reply({ content: 'Your submission was received successfully!', ephemeral: true });
+  //   }
+  // });
 
   const rest = new REST({ version: "9" }).setToken(config.TOKEN)
 
@@ -336,7 +413,10 @@ bot.on("ready", (_) => {
       const GUILD_ID = i.id
       const awcommands = new Array(...commands)
 
-      if (GUILD_ID === "570707745028964353") {
+      if (
+        GUILD_ID === "570707745028964353" ||
+        GUILD_ID === "989124079250456617"
+      ) {
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
           body: commands,
         })
@@ -351,6 +431,29 @@ bot.on("ready", (_) => {
   }
 
   job.addCallback(() => {
+    const fetchMinecraftStatus = async (voiceChannelId) => {
+      const channel = bot.channels.resolve(voiceChannelId)
+      if (rcon.authenticated) {
+        const resp = await rcon.send("list")
+        const onlinecount = resp
+          ?.replace("There are ", "")
+          .replace(" of a max of 20 players online: ", "\n")
+          .split("\n")
+
+        const serverStatus = {
+          online: onlinecount[0],
+          players: onlinecount[1],
+        }
+
+        await channel.setName(`🟢 MC. Online: ${serverStatus.online}`)
+      } else {
+        await channel.setName(`🔴 MC. Offline`)
+        await rcon.connect().catch(() => _)
+      }
+    }
+
+    fetchMinecraftStatus("1170525641851027506")
+
     const gameScan = async (gameid, voiceChannelId) => {
       const game = await getGO(gameid)
       const channel = bot.channels.resolve(voiceChannelId)
@@ -382,6 +485,35 @@ bot.on("ready", (_) => {
     ]
     ren.setName(arrName[rand(0, arrName.length)])
   })
+})
+
+bot.on("voiceStateUpdate", async (oldState, newState) => {
+  if (
+    oldState.guild.id != "570707745028964353" ||
+    newState.guild.id != "570707745028964353"
+  )
+    return
+  const user = oldState.guild.members.cache.get(oldState.id)
+  const nickname = user.nickname
+
+  if (user.id == "175330170184400896") {
+    return
+  }
+
+  const antiAbuse = newState.selfMute && oldState.selfMute
+  const prefix = "Подлая Крыса "
+
+  let newNickname = nickname
+
+  if ((antiAbuse || newState.selfMute) && !nickname.includes(prefix)) {
+    newNickname = prefix + nickname
+  } else if (!newState.selfMute && nickname.includes(prefix)) {
+    newNickname = nickname.replace(prefix, "")
+  }
+
+  if (newNickname !== nickname) {
+    await user.setNickname(newNickname).catch((e) => e)
+  }
 })
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -453,6 +585,29 @@ bot.on("messageCreate", async (message) => {
     if (command === "-cash") {
       if (user.acclvl < 10) return
       await updateBalance(1)
+    }
+    if (command === "cmd") {
+      if (user.acclvl < 10) return
+      if (!rcon.authenticated) return
+      if (args == "stop") {
+        await rcon.send("stop")
+        message.reply(`Server stoped ${args}`)
+      }
+      if (args == "reload") {
+        await rcon.send("reload")
+        message.reply(`Reload resources ${args}`)
+      }
+      if (args == "tps") {
+        await rcon.send("debug start")
+        await TimeOut(3000)
+        let resp = await rcon.send("debug stop")
+        const tps = resp
+          .replace("Stopped tick profiling after ", "")
+          .replace(" seconds and 60 ticks (", "\n")
+          .replace(" ticks per second)", "")
+          .split("\n")
+        message.reply(`Server TPS: [${tps[1]}]`)
+      }
     }
 
     if (command === "setacc") {
@@ -540,10 +695,8 @@ bot.on("messageCreate", async (message) => {
         queue.play(track)
         await updateBalance(price)
         await message.reply(
-          `${message.author.username} оплатил песню ${
-            track.title
-          } с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username} оплатил песню ${track.title
+          } с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         )
         message.delete()
@@ -564,10 +717,8 @@ bot.on("messageCreate", async (message) => {
         queue.skip()
         await updateBalance(price)
         await message.reply(
-          `${
-            message.author.username
-          } пропустил песню с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username
+          } пропустил песню с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         )
         message.delete()
@@ -623,7 +774,7 @@ bot.on("messageCreate", async (message) => {
       for (let i = 0; i < cmt; i++) {
         const fomula = Math.floor(
           (((1 + Math.sqrt(5)) / 2) ** i - ((1 - Math.sqrt(5)) / 2) ** i) /
-            Math.sqrt(5)
+          Math.sqrt(5)
         )
         if (fomula >= Number.MAX_SAFE_INTEGER) break
         fibArr.push(fomula)
@@ -918,7 +1069,7 @@ bot.on("interactionCreate", async (inter) => {
           ).then((res) => res.json())
           const inventory = await fetch(
             `https://api.sunflower-land.com/visit/${farmId}`
-          ).then((res) => res.json())
+          ).then((res) => res.json()).then((inv) => inv.state)
           const farmEmbed = new EmbedBuilder()
             .setColor(0xea623d)
             .setTitle(farmInfo.name)
@@ -931,10 +1082,10 @@ bot.on("interactionCreate", async (inter) => {
             })
             .setDescription(
               `
-          **Balance**: ${
-            Math.round(inventory.state.balance * 100) / 100
-          } ${sflcurr}
-          **Plots**: X ⛱
+          **SFL**: ${Math.round(inventory.balance * 100) / 100
+              } ${sflcurr}
+          **Coins**: ${inventory.coins.toFixed(2)}
+          **Island**: ${inventory.island.type} ⛱
           `
             )
             .setFooter({
@@ -947,6 +1098,14 @@ bot.on("interactionCreate", async (inter) => {
           await inter.reply({ content: "Wait 10 second", ephemeral: true })
         }
         return
+      case "calc":
+        const cmtq = inter.options.getNumber("value")
+        const rubToUsd = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json").then(resp => resp.json())
+        const rubPrice = rubToUsd.usd["rub"]
+        const prBs = 6
+        return await inter.reply(
+          `${cmtq} RUB / ${(rubPrice + prBs).toFixed(2)} USD = ${(cmtq / (rubPrice + prBs)).toFixed(2)} USDT (${Math.floor(cmtq / (rubPrice) - cmtq / (rubPrice + prBs))})`
+        )
       case "pay":
         const cmt = inter.options.getNumber("amount")
         if (iUser.id === inter.member.user.id)
@@ -1019,16 +1178,17 @@ bot.on("interactionCreate", async (inter) => {
 
         // Convert the image to a buffer and send it as a photo message
         const buffer = await image.getBufferAsync(Jimp.MIME_PNG)
-        const file = new AttachmentBuilder(buffer)
+        const file = new AttachmentBuilder(buffer, {
+          name: "file.jpg",
+          description: "Hui hui hui",
+        })
         const popEmbed = new EmbedBuilder()
           .setColor(0xea623d)
           .setTitle("Попуск")
           .setTimestamp(Date.now())
           .setDescription(`Игрок **${popusk}** теперь официально попуск`)
-          .setImage(
-            "https://media.discordapp.net/attachments/1070730397618552932/1085917127644565515/3.png"
-          )
-        return await inter.reply({ embeds: [popEmbed] })
+          .setImage("attachment://file.jpg")
+        return await inter.reply({ embeds: [popEmbed], files: [file] })
       default:
         return await inter.reply("Команда не найдена")
     }
@@ -1103,20 +1263,20 @@ bot.on("interactionCreate", async (button) => {
   button.customId == "bdo"
     ? roleGiver("796756163135930389")
     : button.customId == "gta5rp"
-    ? roleGiver("862521544944386058")
-    : button.customId == "teso"
-    ? roleGiver("863851712472154113")
-    : button.customId == "fl76"
-    ? roleGiver("797892063830999080")
-    : button.customId == "nwr"
-    ? roleGiver("874578068210085918")
-    : button.customId == "aw"
-    ? roleGiver("1100477620178653205")
-    : button.customId == "archKey"
-    ? roleGiver("861743745083244586")
-    : button.customId == "sfl"
-    ? roleGiver("1065272659824353402")
-    : button.customId == "linux" && roleGiver("862531032376148018")
+      ? roleGiver("862521544944386058")
+      : button.customId == "teso"
+        ? roleGiver("863851712472154113")
+        : button.customId == "fl76"
+          ? roleGiver("797892063830999080")
+          : button.customId == "nwr"
+            ? roleGiver("874578068210085918")
+            : button.customId == "aw"
+              ? roleGiver("1100477620178653205")
+              : button.customId == "archKey"
+                ? roleGiver("861743745083244586")
+                : button.customId == "sfl"
+                  ? roleGiver("1065272659824353402")
+                  : button.customId == "linux" && roleGiver("862531032376148018")
 })
 
 const deleteAllGlobalCommands = async () => {
