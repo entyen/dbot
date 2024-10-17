@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+const { Schema, model } = require("mongoose");
 
-const userSchem = new mongoose.Schema({
+const userSchem = new Schema({
   userid: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0, min: 0 },
   tel: { type: Number, default: null },
@@ -12,13 +12,42 @@ const userSchem = new mongoose.Schema({
   nonce: { type: Number, default: Math.floor(Math.random() * 1000000) },
 });
 
-const iconRoleSchem = new mongoose.Schema({
+const iconRoleSchem = new Schema({
   roleId: { type: String, required: true, unique: true },
 });
 
-const nftUpdateSchem = new mongoose.Schema({
+const nftUpdateSchem = new Schema({
   smartContract: { type: String, required: true, unique: true },
   blockId: { type: Number, required: true },
 });
 
-module.exports = { userSchem, iconRoleSchem, nftUpdateSchem };
+const serverSchema = new Schema({
+  serverId: { type: String, require: true, unique: true },
+  serverName: { type: String },
+  active: { type: Boolean, default: true },
+  serverCurrencyName: { type: String },
+  serverCurrencyEmoji: { type: String },
+  whoCanTransferCurrency: { type: String },
+  whoCanCreateCurrency: { type: String },
+});
+
+const serverUserSchema = new Schema({
+  serverId: { type: String, require: true },
+  userId: { type: String, require: true },
+  userName: { type: String },
+  serverRole: { type: String },
+  dkpPoints: { type: Number, default: 0 },
+});
+
+serverUserSchema.index({ serverId: 1, userId: 1 }, { unique: true });
+
+const serverdb = model("servers", serverSchema);
+const serverUserdb = model("servers_users", serverUserSchema);
+
+module.exports = {
+  userSchem,
+  iconRoleSchem,
+  nftUpdateSchem,
+  serverdb,
+  serverUserdb,
+};
