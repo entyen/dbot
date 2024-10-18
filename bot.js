@@ -363,6 +363,18 @@ bot.on("ready", (_) => {
       .setName("Activity Point Balance")
       .setNameLocalizations({ ru: "Баланс очков активности" })
       .setType(ApplicationCommandType.User),
+    new SlashCommandBuilder()
+      .setName("set-server-currency-emoji")
+      .setDescription("Set server currency emoji")
+      .setDescriptionLocalizations({ ru: "Установить эмоджи валюты сервера" })
+      .addStringOption((option) =>
+        option
+          .setName("emoji_id")
+          .setDescription("Emoji Id")
+          .setDescriptionLocalizations({ ru: "Айди Эмоджи" })
+          .setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   ];
 
   bot.on("interactionCreate", async (interaction) => {
@@ -391,9 +403,14 @@ bot.on("ready", (_) => {
         ephemeral: true,
       });
     } else if (interaction.commandName === "Activity Point Balance") {
-      const serverInfo = await serverdb.findOne({ serverId: interaction?.guildId })
-      if (!serverInfo) return interaction.reply('Server not supported')
-      const pointsEmoji = bot.emojis.cache.get(serverInfo.serverCurrencyEmoji);
+      const serverInfo = await serverdb.findOne({
+        serverId: interaction?.guildId,
+      });
+      if (!serverInfo) return interaction.reply("Server not supported");
+      const guild = bot.guilds.cache.get(interaction.guildId);
+      const pointsEmoji = guild
+        ? await guild.emojis.fetch(serverInfo.serverCurrencyEmoji)
+        : null;
       let serverUserInfo = await serverUserdb.findOne({
         serverId: interaction?.guildId,
         userId: interaction.targetId,
@@ -405,7 +422,9 @@ bot.on("ready", (_) => {
         });
       }
       await interaction.reply({
-        content: `Баланс: ${serverUserInfo?.dkpPoints || 0} ${pointsEmoji}`,
+        content: `Баланс: ${serverUserInfo?.dkpPoints || 0} ${
+          pointsEmoji || ""
+        }`,
         ephemeral: true,
       });
     } else if (interaction.commandName === "Donate Aden") {
@@ -471,12 +490,9 @@ bot.on("ready", (_) => {
       const CLIENT_ID = bot.user.id;
       const GUILD_ID = GUILD.id;
 
-      const commandsToUpload = [
-        "570707745028964353",
-        "989124079250456617",
-      ].includes(GUILD_ID)
+      const commandsToUpload = ["570707745028964353"].includes(GUILD_ID)
         ? commands
-        : commands.slice(12, 13);
+        : commands.slice(12);
 
       const server = await serverdb.findOne({ serverId: GUILD.id });
       if (!server) {
@@ -616,9 +632,9 @@ async function updateUserPoints(guildId, userId, points) {
     await serverUserdb.create({
       serverId: guildId,
       userId,
-      dkpPoints: points
+      dkpPoints: points,
     });
-    return
+    return;
   }
   user.dkpPoints += points;
   await user.save();
@@ -1339,6 +1355,26 @@ bot.on("interactionCreate", async (inter) => {
           content: `Штраф пользователя ${iUser.username} составляет ${userDB.fine} 💰`,
           ephemeral: true,
         });
+      case "set-server-currency-emoji":
+        const emojiId = inter.options.getString("emoji_id");
+        try {
+          const guild = bot.guilds.cache.get(inter.guildId);
+          const pointsEmoji = guild ? await guild.emojis.fetch(emojiId) : null;
+          const serverInfo = await serverdb.findOne({
+            serverId: inter.guildId,
+          });
+          serverInfo.serverCurrencyEmoji = `${pointsEmoji.id}`;
+          await serverInfo.save();
+          return await inter.reply({
+            content: `New emoji set: ${pointsEmoji}`,
+            ephemeral: true,
+          });
+        } catch (e) {
+          return await inter.reply({
+            content: `Error: ${e.message}`,
+            ephemeral: true,
+          });
+        }
       case "popusk":
         if (user.acclvl < 2) return await inter.reply("Недостаточно прав");
         const popusk = inter.options.getString("name");
