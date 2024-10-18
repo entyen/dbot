@@ -19,7 +19,9 @@ const {
   TextInputStyle,
   AttachmentBuilder,
   ComponentType,
+  PresenceUpdateStatus,
   UserSelectMenuBuilder,
+  PermissionFlagsBits,
 } = require("discord.js");
 const mongoose = require("mongoose");
 const steam = require("steam-web");
@@ -88,6 +90,7 @@ const {
   iconRoleSchem,
   nftUpdateSchem,
   serverdb,
+  serverUserdb,
 } = require("./schema/data.js");
 const Web3 = require("web3");
 const nftdb = mongoose.model("nftBase", nftUpdateSchem);
@@ -232,6 +235,10 @@ const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow");
 
 bot.on("ready", (_) => {
   console.log(`Logged in as ${bot.user.tag}!`);
+  bot.user.setPresence({
+    activities: [{ name: "activity" }],
+    status: PresenceUpdateStatus.Idle,
+  });
   //MINECRAFT RCON Connection
   rcon.on("connect", () => console.log("Minecraft RCON: connected"));
   rcon.on("authenticated", () => console.log("Minecraft RCON: authenticated"));
@@ -329,6 +336,7 @@ bot.on("ready", (_) => {
       .setName("User Information")
       .setNameLocalizations({ ru: "Информация о пользователе" })
       .setType(ApplicationCommandType.User),
+    // .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new ContextMenuCommandBuilder()
       .setName("User Balance")
       .setNameLocalizations({ ru: "Баланс пользователя" })
@@ -351,6 +359,10 @@ bot.on("ready", (_) => {
           .setRequired(true)
       ),
     new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
+    new ContextMenuCommandBuilder()
+      .setName("Activity Point Balance")
+      .setNameLocalizations({ ru: "Баланс очков активности" })
+      .setType(ApplicationCommandType.User),
   ];
 
   bot.on("interactionCreate", async (interaction) => {
@@ -373,14 +385,30 @@ bot.on("ready", (_) => {
           `User: <@${iUser}>\n\n **Balance**: ${iUser.balance} ${currency}\n **Fine**: ${iUser.fine} ${currency}`
         );
       await interaction.reply({ embeds: [embed] });
-    }
-    if (interaction.commandName === "User Balance") {
+    } else if (interaction.commandName === "User Balance") {
       await interaction.reply({
         content: `${iUser.balance} Aden`,
         ephemeral: true,
       });
-    }
-    if (interaction.commandName === "Donate Aden") {
+    } else if (interaction.commandName === "Activity Point Balance") {
+      const serverInfo = await serverdb.findOne({ serverId: interaction?.guildId })
+      if (!serverInfo) return interaction.reply('Server not supported')
+      const pointsEmoji = bot.emojis.cache.get(serverInfo.serverCurrencyEmoji);
+      let serverUserInfo = await serverUserdb.findOne({
+        serverId: interaction?.guildId,
+        userId: interaction.targetId,
+      });
+      if (!serverUserInfo) {
+        serverUserInfo = await serverUserdb.create({
+          serverId: interaction?.guildId,
+          userId: interaction.targetId,
+        });
+      }
+      await interaction.reply({
+        content: `Баланс: ${serverUserInfo?.dkpPoints || 0} ${pointsEmoji}`,
+        ephemeral: true,
+      });
+    } else if (interaction.commandName === "Donate Aden") {
       const modal = new ModalBuilder()
         .setCustomId(`adenaDonate:${iUser.userid}`)
         .setTitle("Adena Donation");
@@ -448,7 +476,7 @@ bot.on("ready", (_) => {
         "989124079250456617",
       ].includes(GUILD_ID)
         ? commands
-        : commands.slice(9, 11);
+        : commands.slice(12, 13);
 
       const server = await serverdb.findOne({ serverId: GUILD.id });
       if (!server) {
@@ -457,8 +485,22 @@ bot.on("ready", (_) => {
           serverName: GUILD.name,
           active: true,
         });
-        console.log(`Created ${newServer}`)
+        console.log(`Created ${newServer}`);
       }
+      GUILD.members.cache.forEach(async (MEMBER) => {
+        const { user } = MEMBER;
+        const serverUser = await serverUserdb.findOne({
+          serverId: GUILD.id,
+          userId: user.id,
+        });
+        if (!serverUser) {
+          const newServerUser = await serverUserdb.create({
+            serverId: GUILD.id,
+            userId: user.id,
+          });
+          console.log(`Created Server User ${newServerUser}`);
+        }
+      });
 
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
         body: commandsToUpload,
@@ -538,34 +580,49 @@ bot.on("ready", (_) => {
   });
 });
 
+const pointsPerMinute = 1;
+
+const usersInVoice = new Map();
+
 bot.on("voiceStateUpdate", async (oldState, newState) => {
-  if (
-    oldState.guild.id != "570707745028964353" ||
-    newState.guild.id != "570707745028964353"
-  )
-    return;
-  const user = oldState.guild.members.cache.get(oldState.id);
-  const nickname = user.nickname;
+  const userId = newState.id;
+  const guildId = newState.guild.id;
 
-  if (user.id == "175330170184400896") {
-    return;
+  if (!oldState.channelId && newState.channelId) {
+    usersInVoice.set(userId, Date.now());
   }
 
-  const antiAbuse = newState.selfMute && oldState.selfMute;
-  const prefix = "Подлая Крыса ";
+  if (oldState.channelId && !newState.channelId) {
+    const joinTime = usersInVoice.get(userId);
+    if (joinTime) {
+      const timeSpent = (Date.now() - joinTime) / 1000 / 60;
+      const pointsEarned = Math.floor(timeSpent * pointsPerMinute);
 
-  let newNickname = nickname;
+      await updateUserPoints(guildId, userId, pointsEarned);
+      console.log(
+        `User ${userId} earned ${pointsEarned} points for ${timeSpent.toFixed(
+          2
+        )} minutes`
+      );
 
-  if ((antiAbuse || newState.selfMute) && !nickname.includes(prefix)) {
-    newNickname = prefix + nickname;
-  } else if (!newState.selfMute && nickname.includes(prefix)) {
-    newNickname = nickname.replace(prefix, "");
-  }
-
-  if (newNickname !== nickname) {
-    await user.setNickname(newNickname).catch((e) => e);
+      usersInVoice.delete(userId);
+    }
   }
 });
+
+async function updateUserPoints(guildId, userId, points) {
+  const user = await serverUserdb.findOne({ serverId: guildId, userId });
+  if (!user) {
+    await serverUserdb.create({
+      serverId: guildId,
+      userId,
+      dkpPoints: points
+    });
+    return
+  }
+  user.dkpPoints += points;
+  await user.save();
+}
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
   let role = await roledb.find({});

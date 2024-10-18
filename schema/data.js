@@ -23,19 +23,19 @@ const nftUpdateSchem = new Schema({
 
 const serverSchema = new Schema({
   serverId: { type: String, require: true, unique: true },
-  serverName: { type: String },
+  serverName: { type: String, default: null },
   active: { type: Boolean, default: true },
-  serverCurrencyName: { type: String },
-  serverCurrencyEmoji: { type: String },
-  whoCanTransferCurrency: { type: String },
-  whoCanCreateCurrency: { type: String },
+  serverCurrencyName: { type: String, default: null },
+  serverCurrencyEmoji: { type: String, default: null },
+  whoCanTransferCurrency: { type: String, default: null },
+  whoCanCreateCurrency: { type: String, default: null },
 });
 
 const serverUserSchema = new Schema({
   serverId: { type: String, require: true },
   userId: { type: String, require: true },
-  userName: { type: String },
-  serverRole: { type: String },
+  userName: { type: String, default: null },
+  serverRole: { type: String, default: null },
   dkpPoints: { type: Number, default: 0 },
 });
 
