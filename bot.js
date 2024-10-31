@@ -381,6 +381,33 @@ bot.on("ready", (_) => {
           .setRequired(true)
       )
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    new SlashCommandBuilder()
+      .setName("bulk-points-give")
+      .setDescription("Give points to multiple users")
+      .setDescriptionLocalizations({
+        ru: "Выдать очки нескольким пользователям",
+      })
+      .addStringOption((option) =>
+        option
+          .setName("user_list")
+          .setDescription("Enter usernames or mention multiple users")
+          .setRequired(true)
+      )
+      .addNumberOption((option) =>
+        option
+          .setName("points_count")
+          .setDescription("Giving points count")
+          .setDescriptionLocalizations({ ru: "Количество очков для выдачи" })
+          .setRequired(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName("reason")
+          .setDescription("Reason for giving points")
+          .setDescriptionLocalizations({ ru: "Причина выдачи очков" })
+          .setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   ];
 
   bot.on("interactionCreate", async (interaction) => {
@@ -696,7 +723,7 @@ bot.on("ready", (_) => {
         await secChannel.setName(weatherTL.untillRain || "error");
       } else {
         await channel.setName(`${statusTL.status}` || "error");
-        await secChannel.setName('==========');
+        await secChannel.setName("==========");
       }
       return { statusTL };
     };
@@ -1477,6 +1504,60 @@ bot.on("interactionCreate", async (inter) => {
             ephemeral: true,
           });
         }
+      case "bulk-points-give":
+        const userList = inter.options.getString("user_list");
+        const userIds = userList
+          .match(/<@(\d+)>/g)
+          .map((mention) => mention.replace(/[<@>]/g, ""));
+
+        const serverId = inter.guildId;
+        const _server = serverdb.findOne({ serverId });
+        const guild = bot.guilds.cache.get(inter.guildId);
+        const pointsEmoji = _server?.serverCurrencyEmoji
+          ? await guild.emojis.fetch(_server.serverCurrencyEmoji)
+          : null;
+        const pointsCount = inter.options.getNumber("points_count");
+        const giveReason = inter.options.getString("reason") || "Без причины";
+
+        const giveOrGett = pointsCount > 0 ? "выданы пользователям" : "забраны у пользователей"
+        let replySummary = `**Очки за ${giveReason} успешно ${giveOrGett}:**\n\n`;
+
+        for (const userId of userIds) {
+          try {
+            const userFromDB = await serverUserdb.findOne({ serverId, userId });
+            if (!userFromDB) {
+              replySummary += `<@${userId}>: Пользователь не найден в базе данных\n`;
+              continue;
+            }
+
+            // Создание записи о выдаче очков
+            await pointsdb.create({
+              serverId,
+              giverId: inter.user.id,
+              getterId: userId,
+              givingPoints: pointsCount,
+              givingReason: giveReason,
+            });
+
+            // Обновление очков пользователя
+            userFromDB.dkpPoints += pointsCount;
+            await userFromDB.save();
+
+            replySummary += `<@${userId}>: **${Math.abs(pointsCount)} ${pointsEmoji || 'Очков'}**\n`;
+          } catch (error) {
+            console.error(
+              `Ошибка при выдаче очков пользователю ${userId}:`,
+              error
+            );
+            replySummary += `<@${userId}>: Ошибка при выдаче очков\n`;
+          }
+        }
+
+        return await inter.reply({
+          content: replySummary,
+          ephemeral: true,
+        });
+
       case "popusk":
         if (user.acclvl < 2) return await inter.reply("Недостаточно прав");
         const popusk = inter.options.getString("name");
