@@ -2,7 +2,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 
 const url = "https://www.playthroneandliberty.com/en-gb/support/server-status";
-const apiUrl = "https://tldb.info/server-status/__data.json";
+const apiUrl = "https://throneandliberty.gameslantern.com/api/weather";
 
 const parseTlServerStatus = async (serverName) => {
   try {
@@ -28,11 +28,11 @@ const parseTlServerStatus = async (serverName) => {
 
         let status;
         if (statusSvg.includes("24FF00")) {
-          status = "🟢 Хорошо";
+          status = "🟢";
         } else if (statusSvg.includes("FFF500")) {
-          status = "🟠 Занят";
+          status = "🟠";
         } else if (statusSvg.includes("FF0000")) {
-          status = "🔴 Полный";
+          status = "🔴";
         } else if (statusSvg.includes("00F0FF")) {
           status = "🔵 На техобслуживании";
         } else {
@@ -50,20 +50,55 @@ const parseTlServerStatus = async (serverName) => {
   }
 };
 
-const parseTlServerInfo = async (serverName) => {
-  const responce = await axios.get(apiUrl);
+const conditions = [
+  {
+    id: "EWeatherType::Normal",
+    name: "Солнечно",
+    emoji: "🌤️️",
+  },
+  {
+    id: "EWeatherType::Rain",
+    name: "Дождь",
+    emoji: "🌧️",
+  },
+  {
+    id: "EWeatherType::Snow",
+    name: "Снег",
+    emoji: "🌨️️",
+  },
+  {
+    id: "EWeatherType::Indoor",
+    name: "В Здании",
+    emoji: "",
+  },
+];
+
+const parseTlWeatherInfo = async (serverRegion) => {
+  const responce = await axios.get(apiUrl, {
+    headers: {
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
   const data = responce.data;
-
-  const servers = data.nodes
-    .filter((node) => node?.type === "data")
-    .flatMap((node) => node.data)
-    .map((server) => ({
-      name: server.name || "Unknown",
-      status: server.status || "Unknown",
-      region: server.region || "Unknown",
-    }));
-
-  console.log(servers);
+  const europeWeather = data.data[serverRegion];
+  const currentState = europeWeather.find(
+    (weather) => weather.ts <= Date.now()
+  );
+  const nextState = europeWeather.find((weather) => weather.ts >= Date.now());
+  const nextStateCond = conditions.find(
+    (condition) => condition.id === nextState.condition
+  );
+  const rainSchedush = {
+    timeToState: Math.floor((nextState.ts - Date.now()) / 1000 / 60),
+    stateName: nextStateCond,
+  };
+  const weatherCondition = conditions.find(
+    (condition) => condition.id === currentState.condition
+  );
+  return {
+    weather: `${weatherCondition?.name} ${weatherCondition?.emoji}`,
+    untillRain: `${rainSchedush?.stateName?.name} через ${rainSchedush.timeToState} мин`,
+  };
 };
 
-module.exports = { parseTlServerStatus, parseTlServerInfo };
+module.exports = { parseTlServerStatus, parseTlWeatherInfo };

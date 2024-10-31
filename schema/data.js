@@ -37,12 +37,22 @@ const serverUserSchema = new Schema({
   userName: { type: String, default: null },
   serverRole: { type: String, default: null },
   dkpPoints: { type: Number, default: 0 },
+  activityPoints: { type: Number, default: 0 },
+});
+
+const givingPointsSchema = new Schema({
+  serverId: { type: String, require: true },
+  giverId: { type: String, require: true },
+  getterId: { type: String, require: true },
+  givingPoints: { type: Number, require: true },
+  givingReason: { type: String, default: null },
 });
 
 serverUserSchema.index({ serverId: 1, userId: 1 }, { unique: true });
 
 const serverdb = model("servers", serverSchema);
 const serverUserdb = model("servers_users", serverUserSchema);
+const pointsdb = model('points', givingPointsSchema)
 
 module.exports = {
   userSchem,
@@ -50,4 +60,5 @@ module.exports = {
   nftUpdateSchem,
   serverdb,
   serverUserdb,
+  pointsdb
 };

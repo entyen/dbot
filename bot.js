@@ -50,7 +50,7 @@ const config = require("./config.json");
 const lang = JSON.parse(fs.readFileSync("en.json", "utf-8"));
 const {
   parseTlServerStatus,
-  parseTlServerInfo,
+  parseTlWeatherInfo,
 } = require("./module/throneandliberty/TlServerStatus.js");
 
 const bot = new Client({
@@ -91,6 +91,7 @@ const {
   nftUpdateSchem,
   serverdb,
   serverUserdb,
+  pointsdb,
 } = require("./schema/data.js");
 const Web3 = require("web3");
 const nftdb = mongoose.model("nftBase", nftUpdateSchem);
@@ -360,9 +361,14 @@ bot.on("ready", (_) => {
       ),
     new SlashCommandBuilder().setName("walletset").setDescription(lang[8]),
     new ContextMenuCommandBuilder()
-      .setName("Activity Point Balance")
-      .setNameLocalizations({ ru: "Баланс очков активности" })
+      .setName("Point Balance")
+      .setNameLocalizations({ ru: "Баланс очков" })
       .setType(ApplicationCommandType.User),
+    new ContextMenuCommandBuilder()
+      .setName("Give Points")
+      .setNameLocalizations({ ru: "Выдать очки" })
+      .setType(ApplicationCommandType.User)
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new SlashCommandBuilder()
       .setName("set-server-currency-emoji")
       .setDescription("Set server currency emoji")
@@ -402,13 +408,49 @@ bot.on("ready", (_) => {
         content: `${iUser.balance} Aden`,
         ephemeral: true,
       });
-    } else if (interaction.commandName === "Activity Point Balance") {
+    } else if (interaction.commandName === "Give Points") {
+      const serverInfo = await serverdb.findOne({
+        serverId: interaction?.guildId,
+      });
+      if (!serverInfo) return interaction.reply("Server not supported");
+      const currencyName = serverInfo?.serverCurrencyName || "DKP";
+
+      const dkpModal = new ModalBuilder()
+        .setCustomId(`dkpGive:${interaction.targetId}`)
+        .setTitle(`Give ${currencyName}`);
+
+      const dkpGiveInput = new TextInputBuilder()
+        .setCustomId("dkpGiveInput")
+        .setLabel(`How many ${currencyName} you want to Give?`)
+        .setMaxLength(6)
+        .setMinLength(1)
+        .setValue("10")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+      const dkpGiveReason = new TextInputBuilder()
+        .setCustomId("dkpGiveReason")
+        .setLabel(`Why do you want to give ${currencyName}?`)
+        .setMaxLength(256)
+        .setMinLength(1)
+        .setPlaceholder("Reason here")
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+      const firstActionRow = new ActionRowBuilder().addComponents(dkpGiveInput);
+      const secondActionRow = new ActionRowBuilder().addComponents(
+        dkpGiveReason
+      );
+
+      dkpModal.addComponents(firstActionRow, secondActionRow);
+      await interaction.showModal(dkpModal);
+    } else if (interaction.commandName === "Point Balance") {
       const serverInfo = await serverdb.findOne({
         serverId: interaction?.guildId,
       });
       if (!serverInfo) return interaction.reply("Server not supported");
       const guild = bot.guilds.cache.get(interaction.guildId);
-      const pointsEmoji = guild
+      const pointsEmoji = serverInfo?.serverCurrencyEmoji
         ? await guild.emojis.fetch(serverInfo.serverCurrencyEmoji)
         : null;
       let serverUserInfo = await serverUserdb.findOne({
@@ -421,10 +463,25 @@ bot.on("ready", (_) => {
           userId: interaction.targetId,
         });
       }
+
+      const calculateActivity = (activityPoints) => {
+        const days = Math.floor(activityPoints / 1440); // 1440 минут в дне
+        const hours = Math.floor((activityPoints % 1440) / 60);
+        const minutes = activityPoints % 60;
+        return `${String(days).padStart(2, "0")}д ${String(hours).padStart(
+          2,
+          "0"
+        )}ч ${String(minutes).padStart(2, "0")}м`;
+      };
+
       await interaction.reply({
-        content: `Баланс: ${serverUserInfo?.dkpPoints || 0} ${
+        content: `**Баланс**:\n> ${
+          serverInfo?.serverCurrencyName || "DKP"
+        }: **${serverUserInfo?.dkpPoints || 0} ${
           pointsEmoji || ""
-        }`,
+        }**\n**Активность**: ${calculateActivity(
+          serverUserInfo?.activityPoints
+        )}`,
         ephemeral: true,
       });
     } else if (interaction.commandName === "Donate Aden") {
@@ -479,6 +536,49 @@ bot.on("ready", (_) => {
       await interaction.reply({
         content: `You succecful send ${adenaDonateInput} Adena to <@${targetUser.userid}>`,
         ephemeral: true,
+      });
+    } else if (modalId === "dkpGive" && userId) {
+      const _serverData = await serverdb.findOne({
+        serverId: interaction.guildId,
+      });
+      const guild = bot.guilds.cache.get(interaction.guildId);
+      const pointsEmoji = _serverData.serverCurrencyEmoji
+        ? await guild.emojis.fetch(_serverData.serverCurrencyEmoji)
+        : null;
+      const targetDkpUser = await serverUserdb.findOne({
+        serverId: interaction.guildId,
+        userId: userId,
+      });
+
+      const dkpGiveInput = interaction.fields.getTextInputValue("dkpGiveInput");
+      if (isNaN(dkpGiveInput)) {
+        return await interaction.reply({
+          content: "Ошибка: Введите корректное число!",
+          ephemeral: true,
+        });
+      }
+
+      // MIDDLEWARE
+      const dkpGiveReason =
+        interaction.fields.getTextInputValue("dkpGiveReason");
+      await pointsdb.create({
+        serverId: interaction.guildId,
+        giverId: interaction.user.id,
+        getterId: userId,
+        givingPoints: dkpGiveInput,
+        givingReason: dkpGiveReason || null,
+      });
+
+      targetDkpUser.dkpPoints += +dkpGiveInput;
+      const giveOrGet =
+        dkpGiveInput > 0 ? "выданы пользователю" : "забраны у пользователя";
+      await targetDkpUser.save();
+      await interaction.reply({
+        content: `**${Math.abs(dkpGiveInput)} ${
+          pointsEmoji || "очков"
+        }** успешно ${giveOrGet} <@${targetDkpUser.userId}>!\n**Причина:** ${
+          dkpGiveReason || "Не указана"
+        }`,
       });
     }
   });
@@ -583,62 +683,41 @@ bot.on("ready", (_) => {
   });
 
   job.addCallback(async () => {
-    const fetchTLStatus = async (voiceChannelId) => {
+    const fetchTLStatus = async (voiceChannelId, voiceSecondChannelId) => {
       const channel = bot.channels.resolve(voiceChannelId);
+      const secChannel = bot.channels.resolve(voiceSecondChannelId);
       const statusTL = await parseTlServerStatus("Leonardas");
 
-      await channel.setName(statusTL.status || "error");
+      if (["🟢", "🟠", "🔴"].includes(statusTL.status)) {
+        const weatherTL = await parseTlWeatherInfo("Europe");
+        await channel.setName(
+          `${statusTL.status} ${weatherTL.weather}` || "error"
+        );
+        await secChannel.setName(weatherTL.untillRain || "error");
+      } else {
+        await channel.setName(`${statusTL.status}` || "error");
+        await secChannel.setName('==========');
+      }
       return { statusTL };
     };
 
-    const serverInfo = await fetchTLStatus("1296377397586952214");
-    console.log(serverInfo);
+    try {
+      const serverInfo = await fetchTLStatus(
+        "1296377397586952214",
+        "1299842891190898698"
+      );
+      console.log(serverInfo);
+    } catch (e) {
+      console.error(e);
+    }
   });
 });
 
-const pointsPerMinute = 1;
-
-const usersInVoice = new Map();
-
-bot.on("voiceStateUpdate", async (oldState, newState) => {
-  const userId = newState.id;
-  const guildId = newState.guild.id;
-
-  if (!oldState.channelId && newState.channelId) {
-    usersInVoice.set(userId, Date.now());
-  }
-
-  if (oldState.channelId && !newState.channelId) {
-    const joinTime = usersInVoice.get(userId);
-    if (joinTime) {
-      const timeSpent = (Date.now() - joinTime) / 1000 / 60;
-      const pointsEarned = Math.floor(timeSpent * pointsPerMinute);
-
-      await updateUserPoints(guildId, userId, pointsEarned);
-      console.log(
-        `User ${userId} earned ${pointsEarned} points for ${timeSpent.toFixed(
-          2
-        )} minutes`
-      );
-
-      usersInVoice.delete(userId);
-    }
-  }
-});
-
-async function updateUserPoints(guildId, userId, points) {
-  const user = await serverUserdb.findOne({ serverId: guildId, userId });
-  if (!user) {
-    await serverUserdb.create({
-      serverId: guildId,
-      userId,
-      dkpPoints: points,
-    });
-    return;
-  }
-  user.dkpPoints += points;
-  await user.save();
-}
+//activitySystem
+const {
+  acvititySystem,
+} = require("./module/server-currency-system/acvititySystem");
+acvititySystem(bot);
 
 bot.on("guildMemberUpdate", async (oldMember, newMember) => {
   let role = await roledb.find({});
@@ -874,21 +953,44 @@ bot.on("messageCreate", async (message) => {
     //   message.reply("Pong");
     // }
 
-    if (command === "top") {
-      const top = await userdb.find().sort({ balance: -1 });
-      const top10 = top.slice(0, 10);
+    // if (command === "top") {
+    //   const top = await userdb.find().sort({ balance: -1 });
+    //   const top10 = top.slice(0, 10);
+    //   const top10map = top10.map((x) => {
+    //     let nickname = "Unknown";
+    //     if (x.userid) {
+    //       if (!message.guild.members.cache.get(x.userid)) {
+    //         nickname = bot.users.cache.get(x.userid).username;
+    //       } else {
+    //         nickname =
+    //           message.guild.members.cache.get(x.userid).nickname ||
+    //           message.guild.members.cache.get(x.userid).user.username;
+    //       }
+    //     }
+    //     return `${nickname} - ${x.balance} ${currency}`;
+    //   });
+    //   message.reply({
+    //     content: top10map.join("\n"),
+    //   });
+    // }
+
+    if (command === "dsactivtop") {
+      const allServerUsers = await serverUserdb
+        .find({ serverId: message.guildId })
+        .sort({ activityPoints: -1 });
+      const top10 = allServerUsers.slice(0, 10);
       const top10map = top10.map((x) => {
         let nickname = "Unknown";
-        if (x.userid) {
-          if (!message.guild.members.cache.get(x.userid)) {
-            nickname = bot.users.cache.get(x.userid).username;
+        if (x.userId) {
+          if (!message.guild.members.cache.get(x.userId)) {
+            nickname = bot.users.cache.get(x.userId).username;
           } else {
             nickname =
-              message.guild.members.cache.get(x.userid).nickname ||
-              message.guild.members.cache.get(x.userid).user.username;
+              message.guild.members.cache.get(x.userId).nickname ||
+              message.guild.members.cache.get(x.userId).user.username;
           }
         }
-        return `${nickname} - ${x.balance} ${currency}`;
+        return `${nickname} - ${x.activityPoints}`;
       });
       message.reply({
         content: top10map.join("\n"),
@@ -1525,7 +1627,7 @@ stdin.addListener("data", async (d) => {
   if (d == "delg") {
     deleteAllGlobalCommands();
   } else if (d == "qq") {
-    const status = await parseTlServerInfo("Leonardas");
+    const status = await parseTlWeatherInfo("Europe");
     console.log(status);
   }
 });
