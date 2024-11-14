@@ -3,8 +3,14 @@ module.exports = {
     {
       name: "@dbot/bot",
       script: "pnpm",
-      args: "start:dev",
+      args: "start",
       cwd: "./packages/bot",
+    },
+    {
+      name: "@dbot/frontend",
+      script: "pnpm",
+      args: "start",
+      cwd: "./packages/frontend",
     },
   ],
 };

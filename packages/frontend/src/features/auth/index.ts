@@ -1,0 +1,1 @@
+export { TelegramAuth } from './ui/telegramAuth'

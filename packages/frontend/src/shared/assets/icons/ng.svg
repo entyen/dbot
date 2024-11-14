@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <filter id="background-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset in="SourceAlpha" dx="0" dy="1" result="offsetblur" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.5" />
+      </feComponentTransfer>
+      <feGaussianBlur in="offsetblur" stdDeviation="1" />
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="text-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feOffset in="SourceAlpha" dx="-3" dy="-3" result="offset-shadow" />
+      <feGaussianBlur in="offset-shadow" stdDeviation="3" result="blurred-shadow" />
+      <feComposite in="blurred-shadow" in2="SourceAlpha" operator="in" result="shadow" />
+      <feMerge>
+        <feMergeNode in="shadow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="24" height="24" fill="#2a2928" stroke="#fff" stroke-width="1"
+    filter="url(#background-shadow)" />
+  <text x="50%" y="50%" font-family="Arial, sans-serif" filter="url(#text-shadow)" font-size="12" fill="#fff"
+    text-anchor="middle" dominant-baseline="middle" dy=".1em">
+    NG
+  </text>
+</svg>

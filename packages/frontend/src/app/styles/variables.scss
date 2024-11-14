@@ -1,0 +1,16 @@
+:root {
+  --navbar-width-open: 250px;
+  --navbar-width-closed: 80px;
+  --navbar-transition: width 0.5s ease;
+  --navbar-text-transition: opacity 0.5s ease, max-width 0.5s ease;
+  --navbar-margin-transition: margin-left 0.3s ease;
+
+  --topbar-height: 60px;
+
+  --border-radius: 12px;
+  --button-border-radius: 12px;
+  --input-border-radius: 14px;
+  --input-padding: 0.75rem 1rem;
+  --button-padding: 0.75rem 1rem;
+  --box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.1);
+}

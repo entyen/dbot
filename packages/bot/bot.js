@@ -52,6 +52,9 @@ const {
   parseTlServerStatus,
   parseTlWeatherInfo,
 } = require("./module/throneandliberty/TlServerStatus.js");
+const {
+  parseImageForFindText,
+} = require("./module/throneandliberty/NameDetector.js");
 
 const bot = new Client({
   intents: [
@@ -1001,6 +1004,19 @@ bot.on("messageCreate", async (message) => {
     //   });
     // }
 
+    if (command === "imagetest") {
+      const { attachments } = message;
+      const textPromises = attachments.map(async (attachment) => {
+        return parseImageForFindText(attachment.url);
+      });
+
+      const textArr = await Promise.all(textPromises);
+
+      message.reply({
+        content: textArr[0],
+      });
+    }
+
     if (command === "dsactivtop") {
       const allServerUsers = await serverUserdb
         .find({ serverId: message.guildId })
@@ -1519,7 +1535,8 @@ bot.on("interactionCreate", async (inter) => {
         const pointsCount = inter.options.getNumber("points_count");
         const giveReason = inter.options.getString("reason") || "Без причины";
 
-        const giveOrGett = pointsCount > 0 ? "выданы пользователям" : "забраны у пользователей"
+        const giveOrGett =
+          pointsCount > 0 ? "выданы пользователям" : "забраны у пользователей";
         let replySummary = `**Очки за ${giveReason} успешно ${giveOrGett}:**\n\n`;
 
         for (const userId of userIds) {
@@ -1543,7 +1560,9 @@ bot.on("interactionCreate", async (inter) => {
             userFromDB.dkpPoints += pointsCount;
             await userFromDB.save();
 
-            replySummary += `<@${userId}>: **${Math.abs(pointsCount)} ${pointsEmoji || 'Очков'}**\n`;
+            replySummary += `<@${userId}>: **${Math.abs(pointsCount)} ${
+              pointsEmoji || "Очков"
+            }**\n`;
           } catch (error) {
             console.error(
               `Ошибка при выдаче очков пользователю ${userId}:`,
@@ -1555,7 +1574,7 @@ bot.on("interactionCreate", async (inter) => {
 
         return await inter.reply({
           content: replySummary,
-          ephemeral: true,
+          ephemeral: false,
         });
 
       case "popusk":
