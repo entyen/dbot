@@ -1,7 +1,7 @@
 import { Outlet } from "react-router-dom";
 
 import "./baseLayout.scss";
-import { TelegramAuth } from "@/features/auth";
+// import { TelegramAuth } from "@/features/auth";
 
 export const BaseLayout = () => {
   //TODO uncomment for tg Auth Work

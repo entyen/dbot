@@ -26,17 +26,88 @@ const {
 const mongoose = require("mongoose");
 const steam = require("steam-web");
 const express = require("express");
+const session = require("express-session");
+const config = require("./config.json");
 const app = express();
+const axios = require("axios");
+const cors = require("cors");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // express link web3 and discord bot account
+const PORT = process.env.PORT || 2000;
+
+app.use(
+  session({
+    secret: config.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+app.use(cors({
+  origin: 'https://dkp.grk.pw',
+  credentials: true,
+}));
+
+const CLIENT_ID = config.CLIENT_ID;
+const CLIENT_SECRET = config.CLIENT_SECRET;
+const REDIRECT_URI = config.REDIRECT_URI;
+
 app.post("/webhook", async (req, res) => {
   res.send("Hello World!");
 });
 
-const PORT = process.env.PORT || 2000;
+app.get("/dis/auth", (req, res) => {
+  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(
+    REDIRECT_URI
+  )}&response_type=code&scope=identify`;
+  res.redirect(discordAuthUrl);
+});
+
+app.get("/dis/callback", async (req, res) => {
+  const code = req.query.code;
+  try {
+    const response = await axios.post(
+      "https://discord.com/api/oauth2/token",
+      new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: REDIRECT_URI,
+        scope: "identify",
+      }).toString(),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+
+    const { access_token } = response.data;
+    const userResponse = await axios.get("https://discord.com/api/users/@me", {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
+
+    req.session.user = userResponse.data; // Сохраняем данные пользователя в сессии
+    res.redirect("https://dkp.grk.pw/auth"); // Перенаправление на клиент
+  } catch (error) {
+    console.error("Ошибка при авторизации через Discord:", error);
+    res.redirect("https://dkp.grk.pw");
+  }
+});
+
+app.get("/dis/user", (req, res) => {
+  console.log(req.session)
+  if (!req.session.user) {
+    return res.status(401).send("Не авторизован");
+  }
+  res.json(req.session.user);
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
@@ -46,7 +117,6 @@ const CronJob = require("cron").CronJob;
 
 const http = require("https");
 const fs = require("fs");
-const config = require("./config.json");
 const lang = JSON.parse(fs.readFileSync("en.json", "utf-8"));
 const {
   parseTlServerStatus,

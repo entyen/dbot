@@ -1,1 +1,1 @@
-export { TelegramAuth } from './ui/telegramAuth'
+export { DiscordLoginButton, Dashboard } from './ui/discordAuth'
