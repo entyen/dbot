@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useEffect, useState } from "react";
+import "./discordAuth.scss";
+
+interface User {
+  id: string;
+  global_name: string;
+  username: string;
+}
 
 export const DiscordLoginButton = () => {
   const handleLogin = () => {
@@ -7,32 +13,53 @@ export const DiscordLoginButton = () => {
   };
 
   return (
-    <button onClick={handleLogin}>
+    <button className="DiscordLoginButton" onClick={handleLogin}>
       Авторизоваться через Discord
     </button>
   );
 };
 
 export const Dashboard = () => {
-  const [user, setUser] = useState({ username: null, id: null, global_name: null });
+  const [user, setUser] = useState<User | null>(null);
+
+  // Загружаем пользователя из localStorage
+  const loadUserFromLocalStorage = () => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser) as User);
+    } else {
+      setUser(null);
+    }
+  };
 
   useEffect(() => {
-    async function fetchUser() {
-      try {
-        const response = await axios.get('https://api.grk.pw/dis/user', {
-          withCredentials: true,
-        });
-        setUser(response.data);
-        localStorage.setItem('user', JSON.stringify(response.data));
-      } catch (error) {
-        console.error('Ошибка при получении данных пользователя:', error);
-      }
-    }
+    // Загружаем данные при первом рендере
+    loadUserFromLocalStorage();
 
-    fetchUser();
+    // Обновляем данные, если localStorage изменяется
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "user") {
+        loadUserFromLocalStorage();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
-  if (!user?.id) {
+  // Принудительное обновление после записи в localStorage
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadUserFromLocalStorage();
+    }, 500);
+
+    return () => clearInterval(interval); // Очищаем таймер
+  }, []);
+
+  if (!user) {
     return <div>Загрузка данных пользователя...</div>;
   }
 

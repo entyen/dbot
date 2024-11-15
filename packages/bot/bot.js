@@ -94,7 +94,7 @@ app.get("/dis/callback", async (req, res) => {
     });
 
     req.session.user = userResponse.data; // Сохраняем данные пользователя в сессии
-    res.redirect("https://dkp.grk.pw/auth"); // Перенаправление на клиент
+    res.redirect("https://dkp.grk.pw/dashboard"); // Перенаправление на клиент
   } catch (error) {
     console.error("Ошибка при авторизации через Discord:", error);
     res.redirect("https://dkp.grk.pw");

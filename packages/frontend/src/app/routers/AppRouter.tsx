@@ -2,31 +2,35 @@ import "../styles/index.scss";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { BaseLayout } from "../layout";
 import { Fallback } from "@/shared/ui";
-import { LandingPage } from "@/pages";
+import { LandingPage, LoginPage } from "@/pages";
 import { Dashboard } from "@/features";
+import { ProtectedRoute } from "./ProtectedRoute";
 
 const router = createBrowserRouter([
   {
-    path: "/",
-    element: <BaseLayout />,
-    errorElement: <Fallback />,
+    element: <ProtectedRoute />,
     children: [
       {
-        path: "",
-        element: <LandingPage />,
+        path: "/",
+        element: <BaseLayout />,
+        errorElement: <Fallback />,
+        children: [
+          {
+            path: "",
+            element: <LandingPage />,
+          },
+          {
+            path: "dashboard",
+            element: <Dashboard />,
+          },
+        ],
       },
     ],
   },
   {
-    path: "/auth",
-    element: <BaseLayout />,
+    path: "/login",
     errorElement: <Fallback />,
-    children: [
-      {
-        path: "",
-        element: <Dashboard />,
-      },
-    ],
+    element: <LoginPage />,
   },
 ]);
 

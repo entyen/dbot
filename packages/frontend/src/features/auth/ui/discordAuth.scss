@@ -1,0 +1,39 @@
+.DiscordLoginButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1.5rem;
+  background: linear-gradient(135deg, #7289da, #99aab5);
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
+  &:hover {
+    background: linear-gradient(135deg, #5a73b3, #6c82a9);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  }
+
+  .icon {
+    margin-right: 0.5rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+
+    svg {
+      fill: #ffffff;
+      width: 24px;
+      height: 24px;
+    }
+  }
+}
