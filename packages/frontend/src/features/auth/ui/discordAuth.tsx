@@ -66,7 +66,6 @@ export const Dashboard = () => {
   return (
     <div>
       <h1>Добро пожаловать, {user.global_name}</h1>
-      <p>ID: {user.id}</p>
       <p>Дискорд: {user.username}</p>
     </div>
   );

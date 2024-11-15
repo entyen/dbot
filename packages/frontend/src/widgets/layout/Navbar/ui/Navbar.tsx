@@ -66,7 +66,7 @@ export const Navbar = () => {
 
         {/* Селектор выбора сервера */}
         <div className="server-selector">
-          <label htmlFor="server-select">Select Server</label>
+          <label htmlFor="server-select">Select Guild</label>
           <select
             id="server-select"
             value={serverData.selectedServer.serverName || ""}
