@@ -46,10 +46,12 @@ app.use(
   })
 );
 
-app.use(cors({
-  origin: 'https://dkp.grk.pw',
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: "https://dkp.grk.pw",
+    credentials: true,
+  })
+);
 
 const CLIENT_ID = config.CLIENT_ID;
 const CLIENT_SECRET = config.CLIENT_SECRET;
@@ -102,11 +104,32 @@ app.get("/dis/callback", async (req, res) => {
 });
 
 app.get("/dis/user", (req, res) => {
-  console.log(req.session)
+  console.log(req.session);
   if (!req.session.user) {
     return res.status(401).send("Не авторизован");
   }
   res.json(req.session.user);
+});
+
+app.get("/dis/userServers", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).send("Не авторизован");
+  }
+  const servers = await serverUserdb.find({ userId: req.session.user.id });
+
+  if (servers.length === 0) {
+    return res.status(404).send("Сервера не найдены");
+  }
+
+  const serverIds = servers.map((server) => server.serverId);
+  const serverList = await serverdb.find({ serverId: { $in: serverIds } });
+
+  // Если серверы найдены, отправляем их в ответ
+  if (serverList.length > 0) {
+    return res.json(serverList);
+  } else {
+    return res.status(404).send("Информация о серверах не найдена");
+  }
 });
 
 app.listen(PORT, () => {
@@ -310,7 +333,13 @@ const job = new CronJob("*/5 * * * *", null, false, "Europe/Moscow");
 bot.on("ready", (_) => {
   console.log(`Logged in as ${bot.user.tag}!`);
   bot.user.setPresence({
-    activities: [{ name: "activity" }],
+    activities: [
+      {
+        name: "dkp.grk.pw",
+        type: ActivityType.Streaming,
+        url: "https://dkp.grk.pw",
+      },
+    ],
     status: PresenceUpdateStatus.Idle,
   });
   //MINECRAFT RCON Connection

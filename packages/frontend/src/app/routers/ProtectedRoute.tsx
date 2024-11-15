@@ -10,10 +10,15 @@ export const ProtectedRoute = () => {
       const user = localStorage.getItem("user");
       if (!user) {
         try {
-          const response = await axios.get("https://api.grk.pw/dis/user", {
+          const userFetch = await axios.get("https://api.grk.pw/dis/user", {
             withCredentials: true,
           });
-          localStorage.setItem("user", JSON.stringify(response.data));
+          const userServerFetch = await axios.get("https://api.grk.pw/dis/userServers", {
+            withCredentials: true,
+          });
+          localStorage.setItem("user", JSON.stringify(userFetch.data));
+          const serverList = { selectedServer: { ...userServerFetch.data[0] }, serverList: [...userServerFetch.data] }
+          localStorage.setItem("servers", JSON.stringify(serverList));
           setIsAuthenticated(true); // Пользователь успешно аутентифицирован
         } catch (error) {
           console.error("Ошибка проверки аутентификации:", error);

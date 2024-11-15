@@ -1,0 +1,45 @@
+/* homeLayout.scss */
+
+/* Основной контейнер для всей страницы */
+.home-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Обеспечиваем полную высоту экрана */
+}
+
+/* Обертка для контента */
+.home-layout__wrapper {
+  display: flex;
+  flex: 1; /* Контент будет заполнять оставшееся пространство */
+  flex-direction: column;
+}
+
+/* Стили для основного контента */
+.home-layout__content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto; /* Прокрутка, если контент не помещается */
+  background-color: var(--light-gray); /* Цвет фона для контента */
+  box-sizing: border-box;
+}
+
+/* Стили для навигационной панели */
+.home-layout__navbar {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: var(--white); /* Белый фон для навбара */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Тень для глубины */
+}
+
+/* Для адаптивности экрана добавим медиазапросы */
+@media (max-width: 768px) {
+  .home-layout__content {
+    padding: 15px;
+  }
+
+  .home-layout__wrapper {
+    flex-direction: column;
+  }
+}

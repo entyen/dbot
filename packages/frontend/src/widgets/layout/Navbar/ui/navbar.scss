@@ -1,0 +1,75 @@
+/* navbar.scss */
+
+/* Основные стили для навбара */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Контейнер для навигации */
+.navbar_container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Логотип */
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+.logo-image {
+  width: 40px; /* Устанавливаем размер логотипа */
+  height: auto;
+  margin-right: 10px;
+}
+
+/* Селектор для выбора сервера */
+.server-selector {
+  margin-left: 20px;
+
+  label {
+    font-size: 14px;
+    margin-right: 10px;
+    color: #333;
+  }
+
+  select {
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    color: #333;
+    cursor: pointer;
+
+    &:focus {
+      border-color: #4e9fdd;
+      outline: none;
+    }
+  }
+}
+
+/* Меню */
+.menu {
+  display: flex;
+  gap: 20px;
+
+  a {
+    text-decoration: none;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+    transition: color 0.3s;
+
+    &:hover {
+      color: #4e9fdd; /* Подсвечиваем ссылку при наведении */
+    }
+  }
+}
