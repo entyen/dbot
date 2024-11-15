@@ -1,0 +1,47 @@
+.history-page {
+  padding: 20px;
+  background-color: #f9f9f9;
+}
+
+.history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.history-card {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  width: 300px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.history-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.history-reason {
+  font-size: 18px;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.positive-points {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.negative-points {
+  color: #f44336;
+  font-weight: bold;
+}
+
+.history-card p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #666;
+}

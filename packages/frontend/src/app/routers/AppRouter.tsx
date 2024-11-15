@@ -2,7 +2,7 @@ import "../styles/index.scss";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { HomeLayout } from "../layout";
 import { Fallback } from "@/shared/ui";
-import { HomePage, LoginPage } from "@/pages";
+import { HistoryPage, HomePage, LoginPage } from "@/pages";
 import { Dashboard } from "@/features";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -23,6 +23,10 @@ const router = createBrowserRouter([
           {
             path: "dashboard",
             element: <Dashboard />,
+          },
+          {
+            path: "history",
+            element: <HistoryPage />,
           },
         ],
       },

@@ -132,6 +132,22 @@ app.get("/dis/userServers", async (req, res) => {
   }
 });
 
+app.post("/dis/userHistoryFetch", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).send("Не авторизован");
+  }
+  const logs = await pointsdb.find({
+    getterId: req.session.user.id,
+    serverId: req.body.serverId,
+  });
+
+  if (logs.length > 0) {
+    return res.json(logs);
+  } else {
+    return res.status(404).send("История не найдена");
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
