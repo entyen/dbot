@@ -1,28 +1,28 @@
-import "./historyPage.scss";
-import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import axios from "axios";
+import "./historyPage.scss"
+import { useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import axios from "axios"
 
 interface HistoryItem {
-  _id: string;
-  serverId: string;
-  giverId: string;
-  getterId: string;
-  givingPoints: number;
-  givingReason: string;
+  _id: string
+  serverId: string
+  giverId: string
+  getterId: string
+  givingPoints: number
+  givingReason: string
 }
 
 export const HistoryPage = () => {
-  const navigate = useNavigate();
-  const [historyData, setHistoryData] = useState<HistoryItem[] | null>(null); // Данные истории
-  const [error, setError] = useState<string | null>(null); // Ошибка
+  const navigate = useNavigate()
+  const [historyData, setHistoryData] = useState<HistoryItem[] | null>(null) // Данные истории
+  const [error, setError] = useState<string | null>(null) // Ошибка
 
   const fetchHistory = async () => {
     try {
-      const servers = localStorage.getItem("servers");
+      const servers = localStorage.getItem("servers")
 
       if (servers) {
-        const parsedServers = JSON.parse(servers);
+        const parsedServers = JSON.parse(servers)
 
         if (parsedServers.selectedServer?.serverId) {
           const response = await axios.post(
@@ -30,48 +30,58 @@ export const HistoryPage = () => {
             {
               serverId: parsedServers.selectedServer.serverId,
             },
-            { withCredentials: true }
-          );
+            {
+              withCredentials: true,
+              //WIP TODO need impelent in /packages/frontend/src/app/routers/ProtectedRoute.tsx
+              validateStatus: (status) => {
+                return (status >= 200 && status < 300) || status === 401 // Разрешаем статус 401
+              },
+            }
+          )
 
-          if (response.data && response.data.length > 0) {
-            setHistoryData(response.data); // Успешно получили данные
+          if (response.status == 401) {
+            //WIP TODO need impelent in /packages/frontend/src/app/routers/ProtectedRoute.tsx
+            localStorage.clear()
+            navigate("/login")
+          } else if (response.data && response.data.length > 0) {
+            setHistoryData(response.data) // Успешно получили данные
           } else {
-            setHistoryData([]); // Данных нет
+            setHistoryData([]) // Данных нет
           }
         } else {
-          setError("Некорректные данные пользователя или сервера.");
+          setError("Некорректные данные пользователя или сервера.")
         }
       } else {
-        setError("Данные отсутствуют в localStorage.");
+        setError("Данные отсутствуют в localStorage.")
       }
     } catch (error) {
-      console.error("Ошибка при получении истории:", error);
-      setError("Нет данных.");
+      console.error("Ошибка при получении истории:", error)
+      setError("Нет данных.")
     }
-  };
+  }
 
   //TODO DONT WORK
   useEffect(() => {
     // Первоначальная загрузка данных
-    fetchHistory();
+    fetchHistory()
 
     // Обработчик для события storage
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === "servers") {
-        fetchHistory(); // Перезагружаем данные, если изменился servers
+        fetchHistory() // Перезагружаем данные, если изменился servers
       }
-    };
+    }
 
-    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("storage", handleStorageChange)
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
+      window.removeEventListener("storage", handleStorageChange)
+    }
+  }, [])
 
   useEffect(() => {
-    navigate("/history");
-  }, [navigate]);
+    navigate("/history")
+  }, [navigate])
 
   return (
     <section className="history-page">
@@ -105,5 +115,5 @@ export const HistoryPage = () => {
         </div>
       )}
     </section>
-  );
-};
+  )
+}

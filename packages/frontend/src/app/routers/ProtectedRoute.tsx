@@ -16,7 +16,7 @@ export const ProtectedRoute = () => {
           const userServerFetch = await axios.get("https://api.grk.pw/dis/userServers", {
             withCredentials: true,
           });
-          localStorage.setItem("user", JSON.stringify(userFetch.data));
+          localStorage.setItem("user", JSON.stringify({ ...userFetch.data, timestamp: Date.now()}));
           const serverList = { selectedServer: { ...userServerFetch.data[0] }, serverList: [...userServerFetch.data] }
           localStorage.setItem("servers", JSON.stringify(serverList));
           setIsAuthenticated(true); // Пользователь успешно аутентифицирован
