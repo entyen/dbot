@@ -620,13 +620,11 @@ bot.on("ready", (_) => {
       }
 
       await interaction.reply({
-        content: `**Баланс**:\n> ${
-          serverInfo?.serverCurrencyName || "DKP"
-        }: **${serverUserInfo?.dkpPoints || 0} ${
-          pointsEmoji || ""
-        }**\n**Активность**: ${calculateActivity(
-          serverUserInfo?.activityPoints
-        )}`,
+        content: `**Баланс**:\n> ${serverInfo?.serverCurrencyName || "DKP"
+          }: **${serverUserInfo?.dkpPoints || 0} ${pointsEmoji || ""
+          }**\n**Активность**: ${calculateActivity(
+            serverUserInfo?.activityPoints
+          )}`,
         ephemeral: true,
       })
     } else if (interaction.commandName === "Donate Aden") {
@@ -719,11 +717,9 @@ bot.on("ready", (_) => {
         dkpGiveInput > 0 ? "выданы пользователю" : "забраны у пользователя"
       await targetDkpUser.save()
       await interaction.reply({
-        content: `**${Math.abs(dkpGiveInput)} ${
-          pointsEmoji || "очков"
-        }** успешно ${giveOrGet} <@${targetDkpUser.userId}>!\n**Причина:** ${
-          dkpGiveReason || "Не указана"
-        }`,
+        content: `**${Math.abs(dkpGiveInput)} ${pointsEmoji || "очков"
+          }** успешно ${giveOrGet} <@${targetDkpUser.userId}>!\n**Причина:** ${dkpGiveReason || "Не указана"
+          }`,
       })
     }
   })
@@ -1043,10 +1039,8 @@ bot.on("messageCreate", async (message) => {
         queue.play(track)
         await updateBalance(price)
         await message.reply(
-          `${message.author.username} оплатил песню ${
-            track.title
-          } с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username} оплатил песню ${track.title
+          } с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         )
         message.delete()
@@ -1067,10 +1061,8 @@ bot.on("messageCreate", async (message) => {
         queue.skip()
         await updateBalance(price)
         await message.reply(
-          `${
-            message.author.username
-          } пропустил песню с вас снято ${price} ${currency}, у вас ${
-            user.balance - price
+          `${message.author.username
+          } пропустил песню с вас снято ${price} ${currency}, у вас ${user.balance - price
           } ${currency}`
         )
         message.delete()
@@ -1162,7 +1154,7 @@ bot.on("messageCreate", async (message) => {
       for (let i = 0; i < cmt; i++) {
         const fomula = Math.floor(
           (((1 + Math.sqrt(5)) / 2) ** i - ((1 - Math.sqrt(5)) / 2) ** i) /
-            Math.sqrt(5)
+          Math.sqrt(5)
         )
         if (fomula >= Number.MAX_SAFE_INTEGER) break
         fibArr.push(fomula)
@@ -1657,8 +1649,12 @@ bot.on("interactionCreate", async (inter) => {
           try {
             const userFromDB = await serverUserdb.findOne({ serverId, userId })
             if (!userFromDB) {
-              replySummary += `<@${userId}>: Пользователь не найден в базе данных\n`
-              continue
+              if (!serverId && !userId) {
+                replySummary += `<@${userId}>: Пользователь не найден в базе данных\n`
+                continue
+              } else {
+                userFromDB = await serverUserdb.create({ serverId, userId, dkpPoints: 0 })
+              }
             }
 
             // Создание записи о выдаче очков
@@ -1674,9 +1670,8 @@ bot.on("interactionCreate", async (inter) => {
             userFromDB.dkpPoints += pointsCount
             await userFromDB.save()
 
-            replySummary += `<@${userId}>: **${Math.abs(pointsCount)} ${
-              pointsEmoji || "Очков"
-            }**\n`
+            replySummary += `<@${userId}>: **${Math.abs(pointsCount)} ${pointsEmoji || "Очков"
+              }**\n`
           } catch (error) {
             console.error(
               `Ошибка при выдаче очков пользователю ${userId}:`,
@@ -1801,26 +1796,26 @@ bot.on("interactionCreate", async (button) => {
   button.customId == "bdo"
     ? roleGiver("796756163135930389")
     : button.customId == "gta5rp"
-    ? roleGiver("862521544944386058")
-    : button.customId == "teso"
-    ? roleGiver("863851712472154113")
-    : button.customId == "fl76"
-    ? roleGiver("797892063830999080")
-    : button.customId == "nwr"
-    ? roleGiver("874578068210085918")
-    : button.customId == "aw"
-    ? roleGiver("1100477620178653205")
-    : button.customId == "archKey"
-    ? roleGiver("861743745083244586")
-    : button.customId == "sfl"
-    ? roleGiver("1065272659824353402")
-    : button.customId == "tank"
-    ? roleGiver("1295813800766734417")
-    : button.customId == "heal"
-    ? roleGiver("1295813830273798286")
-    : button.customId == "dd"
-    ? roleGiver("1295813854877581393")
-    : button.customId == "linux" && roleGiver("862531032376148018")
+      ? roleGiver("862521544944386058")
+      : button.customId == "teso"
+        ? roleGiver("863851712472154113")
+        : button.customId == "fl76"
+          ? roleGiver("797892063830999080")
+          : button.customId == "nwr"
+            ? roleGiver("874578068210085918")
+            : button.customId == "aw"
+              ? roleGiver("1100477620178653205")
+              : button.customId == "archKey"
+                ? roleGiver("861743745083244586")
+                : button.customId == "sfl"
+                  ? roleGiver("1065272659824353402")
+                  : button.customId == "tank"
+                    ? roleGiver("1295813800766734417")
+                    : button.customId == "heal"
+                      ? roleGiver("1295813830273798286")
+                      : button.customId == "dd"
+                        ? roleGiver("1295813854877581393")
+                        : button.customId == "linux" && roleGiver("862531032376148018")
 })
 
 const deleteAllGlobalCommands = async () => {
